@@ -1,0 +1,1 @@
+Delegate a task using CEAuto. Parse the user's input to extract: task title, description, agent (researcher/coder/analyst/writer/ops/security/comms), priority (P1-P4), and deadline. Then call `ceo_delegate` with those parameters. Confirm the directive was written.

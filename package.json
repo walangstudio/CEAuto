@@ -1,0 +1,19 @@
+{
+  "name": "ceauto",
+  "version": "0.1.0",
+  "description": "Autonomous CEO Agent — LLM-agnostic MCP server with multi-agent orchestration",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "^9.4.3",
+    "js-yaml": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

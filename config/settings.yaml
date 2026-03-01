@@ -1,0 +1,69 @@
+# CEO Agent Configuration
+
+## General
+name: "Autonomous CEO Agent"
+version: "1.0.0"
+framework: "MCP-compatible"
+
+## Autonomy
+autonomy:
+  max_retries_per_agent: 3
+  retry_backoff_seconds: 30
+  auto_escalate_after_retries: true
+  require_approval_for:
+    - shell_commands
+    - external_communications
+    - file_deletion
+    - config_changes
+
+## Session
+session:
+  boot_timeout_seconds: 60
+  max_tasks_per_session: 10
+  generate_standup_on_boot: true
+
+## Reporting
+reporting:
+  archive_completed_monthly: true
+  keep_agent_logs_days: 30
+  default_standup_path: "reports/daily-standup.md"
+
+## Task Management
+tasks:
+  backlog_file: "tasks/backlog.md"
+  in_progress_file: "tasks/in-progress.md"
+  blocked_file: "tasks/blocked.md"
+  done_file: "tasks/done.md"
+
+## Memory
+memory:
+  decisions_file: "memory/decisions.md"
+  context_file: "memory/context.md"
+  open_questions_file: "memory/open-questions.md"
+  agent_logs_file: "memory/agent-logs.md"
+  persona_file: "ceo-core/persona.md"
+
+## Communication
+comms:
+  directives_file: "comms/directives.md"
+  escalations_file: "comms/escalations.md"
+  vetos_file: "comms/vetos.md"
+
+## Sub-Agents
+agents:
+  researcher:
+    name: "Research Agent"
+    capability: "research"
+    definition: "subagents/researcher.md"
+  coder:
+    name: "Coder Agent"
+    capability: "coding"
+    definition: "subagents/coder.md"
+  analyst:
+    name: "Data Analyst"
+    capability: "analysis"
+    definition: "subagents/analyst.md"
+  writer:
+    name: "Writer Agent"
+    capability: "writing"
+    definition: "subagents/writer.md"
