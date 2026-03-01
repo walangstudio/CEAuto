@@ -1,0 +1,37 @@
+{
+  "name": "ce-auto-hooks",
+  "version": "1.0.0",
+  "description": "Automation hooks for CEO Agent",
+  "hooks": [
+    {
+      "name": "on-boot",
+      "description": "Run when CEO agent boots",
+      "trigger": "session_start",
+      "script": "on-boot.js"
+    },
+    {
+      "name": "on-delegate",
+      "description": "Run when task is delegated to sub-agent",
+      "trigger": "delegate_task",
+      "script": "on-delegate.js"
+    },
+    {
+      "name": "on-decide",
+      "description": "Run when CEO makes a decision",
+      "trigger": "make_decision",
+      "script": "on-decide.js"
+    },
+    {
+      "name": "on-blocked",
+      "description": "Run when a task becomes blocked",
+      "trigger": "task_blocked",
+      "script": "on-blocked.js"
+    },
+    {
+      "name": "on-complete",
+      "description": "Run when a task is completed",
+      "trigger": "task_complete",
+      "script": "on-complete.js"
+    }
+  ]
+}

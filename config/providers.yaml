@@ -1,0 +1,39 @@
+# CEAuto — LLM Provider Configuration
+# Set API keys via environment variables (preferred) or inline (not recommended for production)
+
+# Default provider for all agents unless overridden below
+default_provider: anthropic
+
+# Provider configurations
+providers:
+  anthropic:
+    default_model: claude-sonnet-4-6
+    # api_key: sk-ant-...  # Set ANTHROPIC_API_KEY env var instead
+
+  openai:
+    default_model: gpt-4o
+    # api_key: sk-...  # Set OPENAI_API_KEY env var instead
+
+  google:
+    default_model: gemini-1.5-pro
+    # api_key: ...  # Set GOOGLE_API_KEY env var instead
+
+  ollama:
+    default_model: llama3
+    base_url: http://localhost:11434
+
+# Per-agent provider override (optional)
+# agent_providers:
+#   researcher: anthropic
+#   coder: anthropic
+#   analyst: openai
+#   writer: anthropic
+#   ops: anthropic
+#   security: anthropic
+#   comms: anthropic
+
+# Per-agent model override (optional)
+# model_per_agent:
+#   researcher: claude-opus-4-6
+#   coder: claude-sonnet-4-6
+#   analyst: gpt-4o
