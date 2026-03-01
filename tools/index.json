@@ -1,0 +1,172 @@
+{
+  "name": "ceo-tools",
+  "version": "0.1.0",
+  "description": "MCP tools for CEAuto Autonomous CEO Agent",
+  "tools": [
+    {
+      "name": "ceo_boot",
+      "description": "Run CEO boot sequence — reads all state files, injects 7-day SQLite summary, returns standup briefing",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "ceo_delegate",
+      "description": "Delegate a task to a sub-agent — logs to in-progress.md + SQLite, writes directive",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "description": { "type": "string" },
+              "deadline": { "type": "string" },
+              "priority": { "type": "string", "enum": ["P1", "P2", "P3", "P4"] }
+            },
+            "required": ["title"]
+          },
+          "agent": {
+            "type": "string",
+            "enum": ["researcher", "coder", "analyst", "writer", "ops", "security", "comms"],
+            "description": "Sub-agent to delegate to"
+          },
+          "context_files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Files to include as context for the agent"
+          },
+          "success_criteria": {
+            "type": "string",
+            "description": "Definition of done for this task"
+          }
+        },
+        "required": ["task", "agent"]
+      }
+    },
+    {
+      "name": "ceo_decide",
+      "description": "Log a CEO decision with persona and rationale — writes to decisions.md + SQLite",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "decision": { "type": "string", "description": "The decision made" },
+          "rationale": { "type": "string", "description": "Why this decision" },
+          "persona": {
+            "type": "string",
+            "enum": ["musk", "bezos", "nadella", "grove"],
+            "description": "Executive persona applied"
+          },
+          "impact": { "type": "string" },
+          "decision_type": {
+            "type": "string",
+            "enum": ["delegation", "prioritization", "unblocking", "escalation", "strategic"]
+          }
+        },
+        "required": ["decision", "rationale"]
+      }
+    },
+    {
+      "name": "ceo_generate_standup",
+      "description": "Generate daily standup report — reads all task state, writes reports/standup.md",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string", "description": "Date for standup (YYYY-MM-DD), defaults to today" }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "ceo_create_directive",
+      "description": "Issue a structured YAML directive to a sub-agent — appends to comms/directives.md",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "enum": ["researcher", "coder", "analyst", "writer", "ops", "security", "comms"]
+          },
+          "task": { "type": "string" },
+          "context": { "type": "string" },
+          "output_path": { "type": "string" },
+          "deadline": { "type": "string" },
+          "priority": { "type": "string", "enum": ["P1", "P2", "P3", "P4"] },
+          "success_criteria": { "type": "string" },
+          "escalate_if": { "type": "string" }
+        },
+        "required": ["agent", "task"]
+      }
+    },
+    {
+      "name": "ceo_report_blocker",
+      "description": "Flag a task as blocked — writes to blocked.md + SQLite, logs to agent-logs.md",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "task_title": { "type": "string" },
+          "reason": { "type": "string" },
+          "agent": { "type": "string" },
+          "action_needed": { "type": "string" }
+        },
+        "required": ["task_id", "reason"]
+      }
+    },
+    {
+      "name": "ceo_complete_task",
+      "description": "Mark a task as done — moves from in-progress.md to done.md + SQLite",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "task_title": { "type": "string" },
+          "outcome": { "type": "string" },
+          "quality": { "type": "string", "description": "Quality rating e.g. ⭐⭐⭐⭐" },
+          "agent": { "type": "string" },
+          "learnings": { "type": "string" }
+        },
+        "required": ["task_id"]
+      }
+    },
+    {
+      "name": "ceo_recall",
+      "description": "Full-text search across all SQLite memory — decisions, agent outputs, events, directives",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "Search query" },
+          "limit": { "type": "number", "default": 10, "description": "Max results to return" },
+          "type": {
+            "type": "string",
+            "enum": ["decisions", "agent_outputs", "directives", "events", "all"],
+            "description": "Narrow search to specific record type"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "ceo_workflow",
+      "description": "Execute a multi-agent workflow chain — runs steps sequentially/parallel, passes outputs as context",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Workflow name (matches filename in workflows/ without .md)"
+          },
+          "goal": { "type": "string", "description": "High-level goal for this workflow run" },
+          "params": {
+            "type": "object",
+            "description": "Additional parameters to inject into workflow steps"
+          }
+        },
+        "required": ["name", "goal"]
+      }
+    }
+  ]
+}
