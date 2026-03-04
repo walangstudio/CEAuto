@@ -10,7 +10,7 @@ CEAUTO_DIR="$SCRIPT_DIR"
 FORCE=false
 UNINSTALL=false
 UPDATE=false
-CLIENT="desktop"
+CLIENT="claudedesktop"
 SKIP_TEST=false
 GLOBAL_CONFIG=false
 CLIENT_EXPLICIT=false
@@ -21,27 +21,27 @@ show_help() {
 Usage: ./install.sh [options]
 
 Options:
-  -c, --client TYPE   MCP client: desktop, code, kilo, opencode, goose, all (default: desktop)
+  -c, --client TYPE   MCP client: claudedesktop, claude, kilo, opencode, goose, all (default: claudedesktop)
   -f, --force         Skip prompts, overwrite existing config
   -u, --uninstall     Remove CEAuto from MCP client config
       --upgrade       Upgrade npm deps and reconfigure
       --update        Alias for --upgrade
-      --global        Write to global config path (applies to: code, opencode, all)
+      --global        Write to global config path (applies to: claude, opencode, all)
                       Default (no --global): writes to parent workspace dir
       --skip-test     Skip server validation
   -h, --help          Show this help
 
 Examples:
   ./install.sh                      Install for Claude Desktop
-  ./install.sh -c code              Install for Claude Code (workspace-local)
-  ./install.sh -c code --global     Install for Claude Code (global config)
+  ./install.sh -c claude              Install for Claude Code (workspace-local)
+  ./install.sh -c claude --global     Install for Claude Code (global config)
   ./install.sh -c kilo              Install for Kilo Code
   ./install.sh -c opencode          Install for OpenCode (workspace-local)
   ./install.sh -c opencode --global Install for OpenCode (global)
   ./install.sh -c goose             Install for Goose
   ./install.sh -c all               Install for all detected clients
   ./install.sh --upgrade            Upgrade npm deps
-  ./install.sh --upgrade -c code    Upgrade + reconfigure Claude Code
+  ./install.sh --upgrade -c claude    Upgrade + reconfigure Claude Code
   ./install.sh -u                   Uninstall
   ./install.sh -u -c all            Uninstall from all client configs
   ./install.sh -f --skip-test       Force install, skip tests
@@ -70,8 +70,8 @@ die()   { err "$*"; exit 1; }
 
 if [[ "$GLOBAL_CONFIG" == true ]]; then
     case "$CLIENT" in
-        code|both|opencode|all) ;;
-        *) die "--global is only valid with -c code, opencode, both, or all" ;;
+        claude|both|opencode|all) ;;
+        *) die "--global is only valid with -c claude, opencode, both, or all" ;;
     esac
 fi
 
@@ -339,11 +339,11 @@ configure_client() {
     local server_js="$2"
 
     case "$client_type" in
-        desktop)
+        claudedesktop)
             info "Client: Claude Desktop"
             _configure_one_path "$(get_desktop_config_path)" "$server_js"
             ;;
-        code)
+        claude)
             if [[ "$GLOBAL_CONFIG" == true ]]; then
                 info "Client: Claude Code (global)"
                 while IFS= read -r config_path; do
@@ -383,14 +383,14 @@ configure_client() {
             fi
             ;;
         both)
-            configure_client "desktop" "$server_js"
+            configure_client "claudedesktop" "$server_js"
             echo ""
-            configure_client "code" "$server_js"
+            configure_client "claude" "$server_js"
             ;;
         all)
-            configure_client "desktop" "$server_js"
+            configure_client "claudedesktop" "$server_js"
             echo ""
-            configure_client "code" "$server_js"
+            configure_client "claude" "$server_js"
             local _kilo_path _opencode_ws _opencode_global _goose_path
             _kilo_path="$(get_kilo_config_path)"
             _opencode_ws="$(dirname "$CEAUTO_DIR")/opencode.json"
@@ -410,7 +410,7 @@ configure_client() {
             fi
             ;;
         *)
-            die "Unknown client type: $client_type. Valid: desktop, code, kilo, opencode, goose, both, all"
+            die "Unknown client type: $client_type. Valid: claudedesktop, claude, kilo, opencode, goose, both, all"
             ;;
     esac
 }
@@ -452,7 +452,7 @@ if [[ "$UPDATE" == true ]]; then
         if [[ "$INSTALLED_VERSION" == "$VERSION" ]]; then
             if [[ "$CLIENT_EXPLICIT" != true && "$FORCE" != true ]]; then
                 info "Already at v${VERSION}. Nothing to do."
-                info "Use --upgrade -c code|all to also reconfigure MCP client."
+                info "Use --upgrade -c claude|all to also reconfigure MCP client."
                 echo ""
                 exit 0
             fi
@@ -547,7 +547,7 @@ echo "  CEAuto installed successfully!"
 echo ""
 echo "  Next steps:"
 case "$CLIENT" in
-    code)
+    claude)
         echo "  1. Open the workspace in Claude Code"
         echo "  2. Fill in memory/context.md and strategy/goals.md"
         echo "  3. Call ceo_boot to start"
