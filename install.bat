@@ -10,7 +10,7 @@ rem ── Defaults ────────────────────
 set "FORCE=false"
 set "UNINSTALL=false"
 set "UPDATE=false"
-set "CLIENT=desktop"
+set "CLIENT=claudedesktop"
 set "SKIP_TEST=false"
 set "GLOBAL_CONFIG=false"
 set "CLIENT_EXPLICIT=false"
@@ -22,27 +22,27 @@ rem ═════════════════════════�
 echo Usage: install.bat [options]
 echo.
 echo Options:
-echo   -c, --client TYPE   MCP client: desktop, code, kilo, opencode, goose, all (default: desktop)
+echo   -c, --client TYPE   MCP client: claudedesktop, claude, kilo, opencode, goose, all (default: claudedesktop)
 echo   -f, --force         Skip prompts, overwrite existing config
 echo   -u, --uninstall     Remove CEAuto from MCP client config
 echo       --upgrade       Upgrade npm deps and reconfigure
 echo       --update        Alias for --upgrade
-echo       --global        Write to global config path (applies to: code, opencode, all)
+echo       --global        Write to global config path (applies to: claude, opencode, all)
 echo                       Default (no --global): writes to parent workspace dir
 echo       --skip-test     Skip server validation
 echo   -h, --help          Show this help
 echo.
 echo Examples:
 echo   install.bat                      Install for Claude Desktop
-echo   install.bat -c code              Install for Claude Code (workspace-local)
-echo   install.bat -c code --global     Install for Claude Code (global config)
+echo   install.bat -c claude              Install for Claude Code (workspace-local)
+echo   install.bat -c claude --global     Install for Claude Code (global config)
 echo   install.bat -c kilo              Install for Kilo Code
 echo   install.bat -c opencode          Install for OpenCode (workspace-local)
 echo   install.bat -c opencode --global Install for OpenCode (global)
 echo   install.bat -c goose             Install for Goose
 echo   install.bat -c all               Install for all detected clients
 echo   install.bat --upgrade            Upgrade npm deps
-echo   install.bat --upgrade -c code    Upgrade + reconfigure Claude Code
+echo   install.bat --upgrade -c claude    Upgrade + reconfigure Claude Code
 echo   install.bat -u                   Uninstall
 echo   install.bat -u -c all            Uninstall from all client configs
 echo   install.bat -f --skip-test       Force install, skip tests
@@ -101,11 +101,11 @@ goto :parse_args
 
 rem ── Validate --global ─────────────────────────────────
 if "!GLOBAL_CONFIG!"=="true" (
-    if not "!CLIENT!"=="code" (
+    if not "!CLIENT!"=="claude" (
         if not "!CLIENT!"=="both" (
             if not "!CLIENT!"=="opencode" (
                 if not "!CLIENT!"=="all" (
-                    echo   ERROR: --global is only valid with -c code, opencode, both, or all >&2
+                    echo   ERROR: --global is only valid with -c claude, opencode, both, or all >&2
                     exit /b 1
                 )
             )
@@ -283,7 +283,7 @@ if not "!INSTALLED_VERSION!"=="" (
         if not "!CLIENT_EXPLICIT!"=="true" (
             if not "!FORCE!"=="true" (
                 echo   Already at v!VERSION!. Nothing to do.
-                echo   Use --upgrade -c code^|all to also reconfigure MCP client.
+                echo   Use --upgrade -c claude^|all to also reconfigure MCP client.
                 echo.
                 goto :cleanup
             )
@@ -392,7 +392,7 @@ echo   -----------------------------
 echo   CEAuto installed successfully!
 echo.
 echo   Next steps:
-if "!CLIENT!"=="code" (
+if "!CLIENT!"=="claude" (
     echo   1. Open the workspace in Claude Code
     echo   2. Fill in memory\context.md and strategy\goals.md
     echo   3. Call ceo_boot to start
@@ -428,8 +428,8 @@ rem Subroutine: configure_client <client_type> <server_js>
 set "_ct=%~1"
 set "_sj=%~2"
 
-if "!_ct!"=="desktop"  goto :cc_desktop
-if "!_ct!"=="code"     goto :cc_code
+if "!_ct!"=="claudedesktop"  goto :cc_desktop
+if "!_ct!"=="claude"         goto :cc_code
 if "!_ct!"=="kilo"     goto :cc_kilo
 if "!_ct!"=="opencode" goto :cc_opencode
 if "!_ct!"=="goose"    goto :cc_goose
@@ -515,15 +515,15 @@ if "!UNINSTALL!"=="true" (
 goto :eof
 
 :cc_both
-call :configure_client "desktop" "!_sj!"
+call :configure_client "claudedesktop" "!_sj!"
 echo.
-call :configure_client "code" "!_sj!"
+call :configure_client "claude" "!_sj!"
 goto :eof
 
 :cc_all
-call :configure_client "desktop" "!_sj!"
+call :configure_client "claudedesktop" "!_sj!"
 echo.
-call :configure_client "code" "!_sj!"
+call :configure_client "claude" "!_sj!"
 if "!UNINSTALL!"=="true" (
     echo. & call :configure_client "kilo" "!_sj!"
     echo. & call :configure_client "opencode" "!_sj!"
