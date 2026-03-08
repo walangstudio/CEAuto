@@ -5,6 +5,8 @@ set -euo pipefail
 MARKER_FILE=".ceauto-installed"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CEAUTO_DIR="$SCRIPT_DIR"
+WORKSPACE_DIR="$PWD"
+SERVER_NAME="ceauto"
 
 # ── Defaults ────────────────────────────────────────────
 FORCE=false
@@ -14,6 +16,7 @@ CLIENT="claudedesktop"
 SKIP_TEST=false
 GLOBAL_CONFIG=false
 CLIENT_EXPLICIT=false
+STATUS=false
 
 # ── Parse flags ─────────────────────────────────────────
 show_help() {
@@ -21,30 +24,36 @@ show_help() {
 Usage: ./install.sh [options]
 
 Options:
-  -c, --client TYPE   MCP client: claudedesktop, claude, kilo, opencode, goose, all (default: claudedesktop)
+  -c, --client TYPE   claudedesktop, claude, cursor, windsurf, vscode, gemini,
+                      codex, zed, kilo, opencode, goose, pidev, all
+                      (default: claudedesktop)
   -f, --force         Skip prompts, overwrite existing config
   -u, --uninstall     Remove CEAuto from MCP client config
       --upgrade       Upgrade npm deps and reconfigure
       --update        Alias for --upgrade
-      --global        Write to global config path (applies to: claude, opencode, all)
-                      Default (no --global): writes to parent workspace dir
+      --status        Show where this server is currently installed
+      --global        Write to global config path (claude, cursor, gemini, codex,
+                      opencode, all)
       --skip-test     Skip server validation
   -h, --help          Show this help
 
 Examples:
-  ./install.sh                      Install for Claude Desktop
-  ./install.sh -c claude              Install for Claude Code (workspace-local)
-  ./install.sh -c claude --global     Install for Claude Code (global config)
-  ./install.sh -c kilo              Install for Kilo Code
-  ./install.sh -c opencode          Install for OpenCode (workspace-local)
-  ./install.sh -c opencode --global Install for OpenCode (global)
-  ./install.sh -c goose             Install for Goose
-  ./install.sh -c all               Install for all detected clients
-  ./install.sh --upgrade            Upgrade npm deps
-  ./install.sh --upgrade -c claude    Upgrade + reconfigure Claude Code
-  ./install.sh -u                   Uninstall
-  ./install.sh -u -c all            Uninstall from all client configs
-  ./install.sh -f --skip-test       Force install, skip tests
+  ./install.sh                        Install for Claude Desktop
+  ./install.sh -c claude              Install for Claude Code (workspace)
+  ./install.sh -c claude --global     Install for Claude Code (global)
+  ./install.sh -c cursor              Install for Cursor (workspace)
+  ./install.sh -c cursor --global     Install for Cursor (global)
+  ./install.sh -c windsurf            Install for Windsurf
+  ./install.sh -c vscode              Install for VS Code (workspace .vscode/mcp.json)
+  ./install.sh -c gemini              Install for Gemini CLI (workspace)
+  ./install.sh -c codex               Install for OpenAI Codex CLI (workspace)
+  ./install.sh -c zed                 Install for Zed (global)
+  ./install.sh -c all                 Install for all detected clients
+  ./install.sh --status               Show installation status
+  ./install.sh --upgrade              Upgrade npm deps
+  ./install.sh --upgrade -c all       Upgrade + reconfigure all clients
+  ./install.sh -u                     Uninstall
+  ./install.sh -u -c all              Uninstall from all client configs
 EOF
     exit 0
 }
@@ -54,6 +63,7 @@ while [[ $# -gt 0 ]]; do
         -f|--force)          FORCE=true; shift ;;
         -u|--uninstall)      UNINSTALL=true; shift ;;
         --update|--upgrade)  UPDATE=true; shift ;;
+        --status)            STATUS=true; shift ;;
         -c|--client)         CLIENT="$2"; CLIENT_EXPLICIT=true; shift 2 ;;
         --global)            GLOBAL_CONFIG=true; shift ;;
         --skip-test)         SKIP_TEST=true; shift ;;
@@ -68,16 +78,20 @@ ok()    { echo "  OK: $*"; }
 err()   { echo "  ERROR: $*" >&2; }
 die()   { err "$*"; exit 1; }
 
+if [[ "$UNINSTALL" == true && "$CLIENT_EXPLICIT" == false ]]; then
+    CLIENT="all"
+fi
+
 if [[ "$GLOBAL_CONFIG" == true ]]; then
     case "$CLIENT" in
-        claude|both|opencode|all) ;;
-        *) die "--global is only valid with -c claude, opencode, both, or all" ;;
+        claude|cursor|gemini|codex|opencode|both|all) ;;
+        *) die "--global is only valid with -c claude, cursor, gemini, codex, opencode, or all" ;;
     esac
 fi
 
 get_version() {
-    # Use grep to avoid Node.js MSYS path resolution issues on Windows
-    grep '"version"' "$CEAUTO_DIR/package.json" 2>/dev/null | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/' || echo "unknown"
+    grep '"version"' "$CEAUTO_DIR/package.json" 2>/dev/null | head -1 \
+        | sed 's/.*"version": *"\([^"]*\)".*/\1/' || echo "unknown"
 }
 
 get_installed_version() {
@@ -120,7 +134,7 @@ get_desktop_config_path() {
 }
 
 get_code_config_path() {
-    echo "$(dirname "$CEAUTO_DIR")/.mcp.json"
+    echo "$WORKSPACE_DIR/.mcp.json"
 }
 
 get_global_code_config_paths() {
@@ -133,15 +147,51 @@ get_global_code_config_paths() {
     printf '%s\n' "${found[@]}"
 }
 
+get_cursor_config_path() {
+    if [[ "$GLOBAL_CONFIG" == true ]]; then
+        echo "$HOME/.cursor/mcp.json"
+    else
+        echo "$WORKSPACE_DIR/.cursor/mcp.json"
+    fi
+}
+
+get_windsurf_config_path() {
+    echo "$HOME/.codeium/windsurf/mcp_config.json"
+}
+
+get_vscode_config_path() {
+    echo "$WORKSPACE_DIR/.vscode/mcp.json"
+}
+
+get_gemini_config_path() {
+    if [[ "$GLOBAL_CONFIG" == true ]]; then
+        echo "$HOME/.gemini/settings.json"
+    else
+        echo "$WORKSPACE_DIR/.gemini/settings.json"
+    fi
+}
+
+get_codex_config_path() {
+    if [[ "$GLOBAL_CONFIG" == true ]]; then
+        echo "$HOME/.codex/config.toml"
+    else
+        echo "$WORKSPACE_DIR/.codex/config.toml"
+    fi
+}
+
+get_zed_config_path() {
+    echo "$HOME/.config/zed/settings.json"
+}
+
 get_kilo_config_path() {
-    echo "$(dirname "$CEAUTO_DIR")/.kilocode/mcp.json"
+    echo "$WORKSPACE_DIR/.kilocode/mcp.json"
 }
 
 get_opencode_config_path() {
     if [[ "$GLOBAL_CONFIG" == true ]]; then
         echo "$HOME/.config/opencode/opencode.json"
     else
-        echo "$(dirname "$CEAUTO_DIR")/opencode.json"
+        echo "$WORKSPACE_DIR/opencode.json"
     fi
 }
 
@@ -149,7 +199,7 @@ get_goose_config_path() {
     echo "$HOME/.config/goose/config.yaml"
 }
 
-# ── JSON merge via Node ───────────────────────────────────
+# ── JSON merge (mcpServers key) via Node ──────────────────
 merge_mcp_config() {
     local config_path="$1"
     local server_js="$2"
@@ -167,7 +217,7 @@ const serverJs = process.argv[2];
 let config = {};
 try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
 config.mcpServers = config.mcpServers || {};
-config.mcpServers.ceauto = { command: 'node', args: [serverJs] };
+config.mcpServers['$SERVER_NAME'] = { command: 'node', args: [serverJs] };
 fs.mkdirSync(path.dirname(path.resolve(configPath)), { recursive: true });
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
 " "$config_path" "$server_js"
@@ -185,16 +235,181 @@ const configPath = process.argv[1];
 let config = {};
 try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch { process.exit(0); }
 const servers = config.mcpServers || {};
-if ('ceauto' in servers) {
-    delete servers.ceauto;
+if ('$SERVER_NAME' in servers) {
+    delete servers['$SERVER_NAME'];
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
-    console.log('  Removed ceauto from config');
+    console.log('  Removed $SERVER_NAME from config');
 } else {
-    console.log('  ceauto not found in config');
+    console.log('  $SERVER_NAME not found in config');
 }
 " "$config_path"
 }
 
+# ── JSON merge (servers key) for VS Code ──────────────────
+merge_vscode_config() {
+    local config_path="$1"
+    local server_js="$2"
+
+    if [[ -f "$config_path" ]]; then
+        cp "$config_path" "${config_path}.backup.$(date +%Y%m%d%H%M%S)"
+        info "Backed up existing config"
+    fi
+
+    node -e "
+const fs = require('fs');
+const path = require('path');
+const configPath = process.argv[1];
+const serverJs = process.argv[2];
+let config = {};
+try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
+config.servers = config.servers || {};
+config.servers['$SERVER_NAME'] = { type: 'stdio', command: 'node', args: [serverJs] };
+fs.mkdirSync(path.dirname(path.resolve(configPath)), { recursive: true });
+fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+" "$config_path" "$server_js"
+}
+
+remove_vscode_config() {
+    local config_path="$1"
+    [[ -f "$config_path" ]] || return 0
+
+    cp "$config_path" "${config_path}.backup.$(date +%Y%m%d%H%M%S)"
+
+    node -e "
+const fs = require('fs');
+const configPath = process.argv[1];
+let config = {};
+try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch { process.exit(0); }
+const servers = config.servers || {};
+if ('$SERVER_NAME' in servers) {
+    delete servers['$SERVER_NAME'];
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+    console.log('  Removed $SERVER_NAME from VS Code config');
+} else {
+    console.log('  $SERVER_NAME not found in VS Code config');
+}
+" "$config_path"
+}
+
+# ── TOML merge for Codex ──────────────────────────────────
+merge_codex_config() {
+    local config_path="$1"
+    local server_js="$2"
+
+    if [[ -f "$config_path" ]]; then
+        cp "$config_path" "${config_path}.backup.$(date +%Y%m%d%H%M%S)"
+        info "Backed up existing config"
+    fi
+
+    node -e "
+const fs = require('fs');
+const path = require('path');
+const configPath = process.argv[1];
+const serverJs = process.argv[2];
+const sn = '$SERVER_NAME';
+const sectionHeader = '[mcp_servers.' + sn + ']';
+const newSection = '\\n' + sectionHeader + '\\ncommand = \"node ' + serverJs + '\"\\nstartup_timeout_sec = 30\\ntool_timeout_sec = 300\\nenabled = true\\n';
+fs.mkdirSync(path.dirname(path.resolve(configPath)), { recursive: true });
+let existing = '';
+try { existing = fs.readFileSync(configPath, 'utf8'); } catch {}
+if (existing.includes(sectionHeader)) {
+    const lines = existing.split('\\n');
+    const startIdx = lines.findIndex(l => l.trim() === sectionHeader);
+    if (startIdx !== -1) {
+        let endIdx = lines.length;
+        for (let i = startIdx + 1; i < lines.length; i++) {
+            if (lines[i].match(/^\[/)) { endIdx = i; break; }
+        }
+        lines.splice(startIdx, endIdx - startIdx);
+        existing = lines.join('\\n');
+    }
+}
+existing = existing.trimEnd();
+if (existing) existing += '\\n';
+fs.writeFileSync(configPath, existing + newSection);
+" "$config_path" "$server_js"
+}
+
+remove_codex_config() {
+    local config_path="$1"
+    [[ -f "$config_path" ]] || return 0
+
+    cp "$config_path" "${config_path}.backup.$(date +%Y%m%d%H%M%S)"
+
+    node -e "
+const fs = require('fs');
+const configPath = process.argv[1];
+const sn = '$SERVER_NAME';
+const sectionHeader = '[mcp_servers.' + sn + ']';
+let existing = '';
+try { existing = fs.readFileSync(configPath, 'utf8'); } catch { process.exit(0); }
+if (!existing.includes(sectionHeader)) {
+    console.log('  $SERVER_NAME not found in codex config');
+    process.exit(0);
+}
+const lines = existing.split('\\n');
+const startIdx = lines.findIndex(l => l.trim() === sectionHeader);
+if (startIdx !== -1) {
+    let endIdx = lines.length;
+    for (let i = startIdx + 1; i < lines.length; i++) {
+        if (lines[i].match(/^\[/)) { endIdx = i; break; }
+    }
+    lines.splice(startIdx, endIdx - startIdx);
+    fs.writeFileSync(configPath, lines.join('\\n'));
+    console.log('  Removed $SERVER_NAME from codex config');
+}
+" "$config_path"
+}
+
+# ── JSON merge (context_servers key) for Zed ─────────────
+merge_zed_config() {
+    local config_path="$1"
+    local server_js="$2"
+
+    if [[ -f "$config_path" ]]; then
+        cp "$config_path" "${config_path}.backup.$(date +%Y%m%d%H%M%S)"
+        info "Backed up existing config"
+    fi
+
+    node -e "
+const fs = require('fs');
+const path = require('path');
+const configPath = process.argv[1];
+const serverJs = process.argv[2];
+let config = {};
+try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
+config.context_servers = config.context_servers || {};
+config.context_servers['$SERVER_NAME'] = {
+    command: { path: 'node', args: [serverJs], env: {} }
+};
+fs.mkdirSync(path.dirname(path.resolve(configPath)), { recursive: true });
+fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+" "$config_path" "$server_js"
+}
+
+remove_zed_config() {
+    local config_path="$1"
+    [[ -f "$config_path" ]] || return 0
+
+    cp "$config_path" "${config_path}.backup.$(date +%Y%m%d%H%M%S)"
+
+    node -e "
+const fs = require('fs');
+const configPath = process.argv[1];
+let config = {};
+try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch { process.exit(0); }
+const cs = config.context_servers || {};
+if ('$SERVER_NAME' in cs) {
+    delete cs['$SERVER_NAME'];
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+    console.log('  Removed $SERVER_NAME from Zed config');
+} else {
+    console.log('  $SERVER_NAME not found in Zed config');
+}
+" "$config_path"
+}
+
+# ── OpenCode JSON merge ───────────────────────────────────
 merge_opencode_config() {
     local config_path="$1"
     local server_js="$2"
@@ -212,7 +427,7 @@ const serverJs = process.argv[2];
 let config = {};
 try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
 config.mcp = config.mcp || {};
-config.mcp.ceauto = { type: 'local', command: ['node', serverJs] };
+config.mcp['$SERVER_NAME'] = { type: 'local', command: ['node', serverJs] };
 fs.mkdirSync(path.dirname(path.resolve(configPath)), { recursive: true });
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
 " "$config_path" "$server_js"
@@ -221,6 +436,7 @@ fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
 remove_opencode_config() {
     local config_path="$1"
     [[ -f "$config_path" ]] || return 0
+
     cp "$config_path" "${config_path}.backup.$(date +%Y%m%d%H%M%S)"
 
     node -e "
@@ -229,16 +445,17 @@ const configPath = process.argv[1];
 let config = {};
 try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch { process.exit(0); }
 const mcp = config.mcp || {};
-if ('ceauto' in mcp) {
-    delete mcp.ceauto;
+if ('$SERVER_NAME' in mcp) {
+    delete mcp['$SERVER_NAME'];
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
-    console.log('  Removed ceauto from config');
+    console.log('  Removed $SERVER_NAME from config');
 } else {
-    console.log('  ceauto not found in config');
+    console.log('  $SERVER_NAME not found in config');
 }
 " "$config_path"
 }
 
+# ── Goose YAML merge ──────────────────────────────────────
 merge_goose_config() {
     local config_path="$1"
     local server_js="$2"
@@ -248,7 +465,6 @@ merge_goose_config() {
         info "Backed up existing config"
     fi
 
-    # Goose uses YAML — use node with js-yaml via NODE_PATH
     NODE_PATH="$CEAUTO_DIR/node_modules" node -e "
 const fs = require('fs');
 const path = require('path');
@@ -258,8 +474,8 @@ let yaml;
 try { yaml = require('js-yaml'); } catch {
     console.log('  js-yaml not available. Add manually to ~/.config/goose/config.yaml:');
     console.log('  extensions:');
-    console.log('    ceauto:');
-    console.log('      name: ceauto');
+    console.log('    $SERVER_NAME:');
+    console.log('      name: $SERVER_NAME');
     console.log('      type: stdio');
     console.log('      cmd: node');
     console.log('      args: [' + serverJs + ']');
@@ -269,7 +485,9 @@ try { yaml = require('js-yaml'); } catch {
 let config = {};
 try { config = yaml.load(fs.readFileSync(configPath, 'utf8')) || {}; } catch {}
 config.extensions = config.extensions || {};
-config.extensions.ceauto = { name: 'ceauto', type: 'stdio', cmd: 'node', args: [serverJs], enabled: true };
+config.extensions['$SERVER_NAME'] = {
+    name: '$SERVER_NAME', type: 'stdio', cmd: 'node', args: [serverJs], enabled: true
+};
 fs.mkdirSync(path.dirname(path.resolve(configPath)), { recursive: true });
 fs.writeFileSync(configPath, yaml.dump(config, { lineWidth: -1 }));
 " "$config_path" "$server_js"
@@ -278,6 +496,7 @@ fs.writeFileSync(configPath, yaml.dump(config, { lineWidth: -1 }));
 remove_goose_config() {
     local config_path="$1"
     [[ -f "$config_path" ]] || return 0
+
     cp "$config_path" "${config_path}.backup.$(date +%Y%m%d%H%M%S)"
 
     NODE_PATH="$CEAUTO_DIR/node_modules" node -e "
@@ -291,14 +510,33 @@ try { yaml = require('js-yaml'); } catch {
 let config = {};
 try { config = yaml.load(fs.readFileSync(configPath, 'utf8')) || {}; } catch { process.exit(0); }
 const ext = config.extensions || {};
-if ('ceauto' in ext) {
-    delete ext.ceauto;
+if ('$SERVER_NAME' in ext) {
+    delete ext['$SERVER_NAME'];
     fs.writeFileSync(configPath, yaml.dump(config, { lineWidth: -1 }));
-    console.log('  Removed ceauto from config');
+    console.log('  Removed $SERVER_NAME from config');
 } else {
-    console.log('  ceauto not found in config');
+    console.log('  $SERVER_NAME not found in config');
 }
 " "$config_path"
+}
+
+# ── Status helpers ────────────────────────────────────────
+_check_in_json() {
+    local config_path="$1"
+    [[ -f "$config_path" ]] || { echo "NO"; return; }
+    grep -q "\"$SERVER_NAME\"" "$config_path" 2>/dev/null && echo "YES" || echo "NO"
+}
+
+_check_in_toml() {
+    local config_path="$1"
+    [[ -f "$config_path" ]] || { echo "NO"; return; }
+    grep -q "^\[mcp_servers\.$SERVER_NAME\]" "$config_path" 2>/dev/null && echo "YES" || echo "NO"
+}
+
+_check_in_yaml() {
+    local config_path="$1"
+    [[ -f "$config_path" ]] || { echo "NO"; return; }
+    grep -q "  $SERVER_NAME:" "$config_path" 2>/dev/null && echo "YES" || echo "NO"
 }
 
 # ── Configure client ─────────────────────────────────────
@@ -306,32 +544,36 @@ _configure_one_path() {
     local config_path="$1"
     local server_js="$2"
 
+    if [[ "$UNINSTALL" == true ]]; then
+        if [[ "$(_check_in_json "$config_path")" == "YES" ]]; then
+            remove_mcp_config "$config_path" > /dev/null 2>&1
+            ok "Removed ($config_path)"
+        fi
+        return
+    fi
+
     info "Config: $config_path"
 
-    if [[ "$UNINSTALL" == true ]]; then
-        remove_mcp_config "$config_path"
-    else
-        if [[ -f "$config_path" ]] && [[ "$FORCE" != true ]]; then
-            local current_args
-            current_args=$(node -e "
+    if [[ -f "$config_path" ]] && [[ "$FORCE" != true ]]; then
+        local current_args
+        current_args=$(node -e "
 try {
     const c = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
-    const e = (c.mcpServers || {}).ceauto || {};
+    const e = (c.mcpServers || {})['$SERVER_NAME'] || {};
     console.log(JSON.stringify(e.args || []));
 } catch { console.log('[]'); }
 " "$config_path" 2>/dev/null) || current_args="[]"
 
-            if echo "$current_args" | grep -q "$server_js"; then
-                info "MCP config already up to date"
-                return 0
-            elif [[ "$current_args" != "[]" ]]; then
-                info "Updating MCP config (server path changed)"
-            fi
+        if echo "$current_args" | grep -q "$server_js"; then
+            info "MCP config already up to date"
+            return 0
+        elif [[ "$current_args" != "[]" ]]; then
+            info "Updating MCP config (server path changed)"
         fi
-
-        merge_mcp_config "$config_path" "$server_js"
-        ok "MCP config updated"
     fi
+
+    merge_mcp_config "$config_path" "$server_js"
+    ok "MCP config updated"
 }
 
 configure_client() {
@@ -340,47 +582,112 @@ configure_client() {
 
     case "$client_type" in
         claudedesktop)
-            info "Client: Claude Desktop"
+            [[ "$UNINSTALL" != true ]] && info "Client: Claude Desktop"
             _configure_one_path "$(get_desktop_config_path)" "$server_js"
             ;;
         claude)
             if [[ "$GLOBAL_CONFIG" == true ]]; then
-                info "Client: Claude Code (global)"
+                [[ "$UNINSTALL" != true ]] && info "Client: Claude Code (global)"
                 while IFS= read -r config_path; do
                     _configure_one_path "$config_path" "$server_js"
                 done < <(get_global_code_config_paths)
             else
-                info "Client: Claude Code (workspace)"
+                [[ "$UNINSTALL" != true ]] && info "Client: Claude Code (workspace)"
                 _configure_one_path "$(get_code_config_path)" "$server_js"
             fi
             ;;
+        cursor)
+            local cursor_path; cursor_path="$(get_cursor_config_path)"
+            if [[ "$UNINSTALL" == true ]]; then
+                if [[ "$(_check_in_json "$cursor_path")" == "YES" ]]; then
+                    remove_mcp_config "$cursor_path" > /dev/null 2>&1; ok "Removed from Cursor"; fi
+            else
+                info "Client: Cursor"; info "Config: $cursor_path"
+                merge_mcp_config "$cursor_path" "$server_js"; ok "MCP config updated"
+            fi
+            ;;
+        windsurf)
+            local windsurf_path; windsurf_path="$(get_windsurf_config_path)"
+            if [[ "$UNINSTALL" == true ]]; then
+                if [[ "$(_check_in_json "$windsurf_path")" == "YES" ]]; then
+                    remove_mcp_config "$windsurf_path" > /dev/null 2>&1; ok "Removed from Windsurf"; fi
+            else
+                info "Client: Windsurf (global)"; info "Config: $windsurf_path"
+                merge_mcp_config "$windsurf_path" "$server_js"; ok "MCP config updated"
+            fi
+            ;;
+        vscode)
+            local vscode_path; vscode_path="$(get_vscode_config_path)"
+            if [[ "$UNINSTALL" == true ]]; then
+                if [[ "$(_check_in_json "$vscode_path")" == "YES" ]]; then
+                    remove_vscode_config "$vscode_path" > /dev/null 2>&1; ok "Removed from VS Code"; fi
+            else
+                info "Client: VS Code (workspace)"; info "Config: $vscode_path"
+                info "Note: for global VS Code config, use the VS Code command palette"
+                merge_vscode_config "$vscode_path" "$server_js"; ok "MCP config updated"
+            fi
+            ;;
+        gemini)
+            local gemini_path; gemini_path="$(get_gemini_config_path)"
+            if [[ "$UNINSTALL" == true ]]; then
+                if [[ "$(_check_in_json "$gemini_path")" == "YES" ]]; then
+                    remove_mcp_config "$gemini_path" > /dev/null 2>&1; ok "Removed from Gemini CLI"; fi
+            else
+                info "Client: Gemini CLI"; info "Config: $gemini_path"
+                merge_mcp_config "$gemini_path" "$server_js"; ok "MCP config updated"
+            fi
+            ;;
+        codex)
+            local codex_path; codex_path="$(get_codex_config_path)"
+            if [[ "$UNINSTALL" == true ]]; then
+                if [[ "$(_check_in_toml "$codex_path")" == "YES" ]]; then
+                    remove_codex_config "$codex_path" > /dev/null 2>&1; ok "Removed from Codex CLI"; fi
+            else
+                info "Client: OpenAI Codex CLI"; info "Config: $codex_path"
+                merge_codex_config "$codex_path" "$server_js"; ok "MCP config updated"
+            fi
+            ;;
+        zed)
+            local zed_path; zed_path="$(get_zed_config_path)"
+            if [[ "$UNINSTALL" == true ]]; then
+                if [[ "$(_check_in_json "$zed_path")" == "YES" ]]; then
+                    remove_zed_config "$zed_path" > /dev/null 2>&1; ok "Removed from Zed"; fi
+            else
+                info "Client: Zed (global)"; info "Config: $zed_path"
+                merge_zed_config "$zed_path" "$server_js"; ok "MCP config updated"
+            fi
+            ;;
         kilo)
-            info "Client: Kilo Code"
+            [[ "$UNINSTALL" != true ]] && info "Client: Kilo Code"
             _configure_one_path "$(get_kilo_config_path)" "$server_js"
             ;;
         opencode)
-            info "Client: OpenCode"
-            local opencode_path
-            opencode_path="$(get_opencode_config_path)"
-            info "Config: $opencode_path"
+            local opencode_path; opencode_path="$(get_opencode_config_path)"
             if [[ "$UNINSTALL" == true ]]; then
-                remove_opencode_config "$opencode_path"
+                if [[ "$(_check_in_json "$opencode_path")" == "YES" ]]; then
+                    remove_opencode_config "$opencode_path" > /dev/null 2>&1; ok "Removed from OpenCode"; fi
             else
-                merge_opencode_config "$opencode_path" "$server_js"
-                ok "MCP config updated"
+                info "Client: OpenCode"; info "Config: $opencode_path"
+                merge_opencode_config "$opencode_path" "$server_js"; ok "MCP config updated"
             fi
             ;;
         goose)
-            info "Client: Goose"
-            local goose_path
-            goose_path="$(get_goose_config_path)"
-            info "Config: $goose_path"
+            local goose_path; goose_path="$(get_goose_config_path)"
             if [[ "$UNINSTALL" == true ]]; then
-                remove_goose_config "$goose_path"
+                if [[ "$(_check_in_yaml "$goose_path")" == "YES" ]]; then
+                    remove_goose_config "$goose_path" > /dev/null 2>&1; ok "Removed from Goose"; fi
             else
-                merge_goose_config "$goose_path" "$server_js"
-                ok "MCP config updated"
+                info "Client: Goose"; info "Config: $goose_path"
+                merge_goose_config "$goose_path" "$server_js"; ok "MCP config updated"
             fi
+            ;;
+        pidev)
+            info "Client: pi.dev"
+            echo ""
+            echo "  pi.dev does not support MCP servers natively."
+            echo "  pi.dev uses TypeScript extensions and CLI tools instead."
+            echo "  To use CEAuto concepts in pi.dev, see: https://pi.dev/docs/extensions"
+            echo ""
             ;;
         both)
             configure_client "claudedesktop" "$server_js"
@@ -391,28 +698,94 @@ configure_client() {
             configure_client "claudedesktop" "$server_js"
             echo ""
             configure_client "claude" "$server_js"
-            local _kilo_path _opencode_ws _opencode_global _goose_path
-            _kilo_path="$(get_kilo_config_path)"
-            _opencode_ws="$(dirname "$CEAUTO_DIR")/opencode.json"
-            _opencode_global="$HOME/.config/opencode/opencode.json"
-            _goose_path="$(get_goose_config_path)"
-            if [[ "$UNINSTALL" == true ]] || [[ -f "$_kilo_path" ]]; then
-                echo ""
-                configure_client "kilo" "$server_js"
+            local _ws _gh
+            _ws="$WORKSPACE_DIR"
+            _gh="$HOME"
+            if [[ "$UNINSTALL" == true ]] || [[ -f "$_ws/.cursor/mcp.json" ]] || [[ -f "$_gh/.cursor/mcp.json" ]]; then
+                echo ""; configure_client "cursor" "$server_js"
             fi
-            if [[ "$UNINSTALL" == true ]] || [[ -f "$_opencode_ws" ]] || [[ -f "$_opencode_global" ]]; then
-                echo ""
-                configure_client "opencode" "$server_js"
+            if [[ "$UNINSTALL" == true ]] || [[ -f "$_gh/.codeium/windsurf/mcp_config.json" ]]; then
+                echo ""; configure_client "windsurf" "$server_js"
             fi
-            if [[ "$UNINSTALL" == true ]] || [[ -f "$_goose_path" ]]; then
-                echo ""
-                configure_client "goose" "$server_js"
+            if [[ "$UNINSTALL" == true ]] || [[ -f "$_ws/.vscode/mcp.json" ]]; then
+                echo ""; configure_client "vscode" "$server_js"
+            fi
+            if [[ "$UNINSTALL" == true ]] || [[ -f "$_ws/.gemini/settings.json" ]] || [[ -f "$_gh/.gemini/settings.json" ]]; then
+                echo ""; configure_client "gemini" "$server_js"
+            fi
+            if [[ "$UNINSTALL" == true ]] || [[ -f "$_ws/.codex/config.toml" ]] || [[ -f "$_gh/.codex/config.toml" ]]; then
+                echo ""; configure_client "codex" "$server_js"
+            fi
+            if [[ "$UNINSTALL" == true ]] || [[ -f "$_gh/.config/zed/settings.json" ]]; then
+                echo ""; configure_client "zed" "$server_js"
+            fi
+            if [[ "$UNINSTALL" == true ]] || [[ -f "$_ws/.kilocode/mcp.json" ]]; then
+                echo ""; configure_client "kilo" "$server_js"
+            fi
+            if [[ "$UNINSTALL" == true ]] || [[ -f "$_ws/opencode.json" ]] || [[ -f "$_gh/.config/opencode/opencode.json" ]]; then
+                echo ""; configure_client "opencode" "$server_js"
+            fi
+            if [[ "$UNINSTALL" == true ]] || [[ -f "$(get_goose_config_path)" ]]; then
+                echo ""; configure_client "goose" "$server_js"
             fi
             ;;
         *)
-            die "Unknown client type: $client_type. Valid: claudedesktop, claude, kilo, opencode, goose, both, all"
+            die "Unknown client: $client_type. Valid: claudedesktop, claude, cursor, windsurf, vscode, gemini, codex, zed, kilo, opencode, goose, pidev, both, all"
             ;;
     esac
+}
+
+# ── Show status ───────────────────────────────────────────
+show_status() {
+    local version installed_version
+    version=$(get_version)
+    installed_version=$(get_installed_version)
+    local _ws _gh
+    _ws="$WORKSPACE_DIR"
+    _gh="$HOME"
+
+    echo ""
+    echo "  CEAuto v${version} — Status"
+    echo "  ────────────────────────────────────────────────────────────────────────────"
+    printf "  %-30s %-9s %s\n" "Client" "Installed" "Config path"
+    echo "  ────────────────────────────────────────────────────────────────────────────"
+
+    _row() {
+        local label="$1" status="$2" path="$3"
+        if [[ "$status" == "YES" ]]; then
+            printf "  %-30s %-9s %s\n" "$label" "YES" "$path"
+        else
+            printf "  %-30s %s\n" "$label" "NO"
+        fi
+    }
+
+    local p s
+    p="$(get_desktop_config_path)";   s=$(_check_in_json "$p"); _row "claudedesktop" "$s" "$p"
+    p="$(get_code_config_path)";      s=$(_check_in_json "$p"); _row "claude (workspace)" "$s" "$p"
+    while IFS= read -r gp; do
+        s=$(_check_in_json "$gp"); _row "claude (global)" "$s" "$gp"
+    done < <(get_global_code_config_paths)
+    p="$_ws/.cursor/mcp.json";        s=$(_check_in_json "$p"); _row "cursor (workspace)" "$s" "$p"
+    p="$_gh/.cursor/mcp.json";        s=$(_check_in_json "$p"); _row "cursor (global)" "$s" "$p"
+    p="$(get_windsurf_config_path)";  s=$(_check_in_json "$p"); _row "windsurf" "$s" "$p"
+    p="$(get_vscode_config_path)";    s=$(_check_in_json "$p"); _row "vscode (workspace)" "$s" "$p"
+    p="$_ws/.gemini/settings.json";   s=$(_check_in_json "$p"); _row "gemini (workspace)" "$s" "$p"
+    p="$_gh/.gemini/settings.json";   s=$(_check_in_json "$p"); _row "gemini (global)" "$s" "$p"
+    p="$_ws/.codex/config.toml";      s=$(_check_in_toml "$p"); _row "codex (workspace)" "$s" "$p"
+    p="$_gh/.codex/config.toml";      s=$(_check_in_toml "$p"); _row "codex (global)" "$s" "$p"
+    p="$(get_zed_config_path)";       s=$(_check_in_json "$p"); _row "zed" "$s" "$p"
+    p="$(get_kilo_config_path)";      s=$(_check_in_json "$p"); _row "kilo" "$s" "$p"
+    p="$_ws/opencode.json";           s=$(_check_in_json "$p"); _row "opencode (workspace)" "$s" "$p"
+    p="$_gh/.config/opencode/opencode.json"; s=$(_check_in_json "$p"); _row "opencode (global)" "$s" "$p"
+    p="$(get_goose_config_path)";     s=$(_check_in_yaml "$p"); _row "goose" "$s" "$p"
+
+    echo "  ────────────────────────────────────────────────────────────────────────────"
+    if [[ -n "$installed_version" ]]; then
+        echo "  Package: v${installed_version} installed"
+    else
+        echo "  Package: not installed"
+    fi
+    echo ""
 }
 
 # ── Banner ───────────────────────────────────────────────
@@ -423,7 +796,9 @@ echo "  CEAuto v${VERSION}"
 if [[ "$UPDATE" == true && -n "$INSTALLED_VERSION" && "$INSTALLED_VERSION" != "$VERSION" ]]; then
     echo "  Upgrading from v${INSTALLED_VERSION}"
 fi
-if [[ "$UNINSTALL" == true ]]; then
+if [[ "$STATUS" == true ]]; then
+    echo "  Mode: status"
+elif [[ "$UNINSTALL" == true ]]; then
     echo "  Mode: uninstall"
 elif [[ "$UPDATE" == true ]]; then
     echo "  Mode: update"
@@ -434,6 +809,12 @@ echo "  ────────────────────────
 echo ""
 
 SERVER_JS="$CEAUTO_DIR/server.js"
+
+# ── Status ───────────────────────────────────────────────
+if [[ "$STATUS" == true ]]; then
+    show_status
+    exit 0
+fi
 
 # ── Uninstall ────────────────────────────────────────────
 if [[ "$UNINSTALL" == true ]]; then
@@ -465,6 +846,7 @@ if [[ "$UPDATE" == true ]]; then
     fi
     echo ""
 
+
     info "Upgrading npm dependencies..."
     (cd "$CEAUTO_DIR" && npm install --silent)
     ok "Dependencies upgraded"
@@ -479,7 +861,7 @@ if [[ "$UPDATE" == true ]]; then
     if [[ "$SKIP_TEST" != true ]]; then
         info "Validating server..."
         if node --check "$SERVER_JS" > /dev/null 2>&1 && \
-           node -e "require('./lib/memory'); require('./lib/orchestrator'); require('./tools/index.json');" > /dev/null 2>&1; then
+           (cd "$CEAUTO_DIR" && node -e "require('./lib/memory'); require('./lib/orchestrator'); require('./tools/index.json');") > /dev/null 2>&1; then
             ok "Server validation passed"
         else
             err "Validation failed. Run 'node --check server.js' for details."
@@ -547,17 +929,12 @@ echo "  CEAuto installed successfully!"
 echo ""
 echo "  Next steps:"
 case "$CLIENT" in
-    claude)
-        echo "  1. Open the workspace in Claude Code"
+    claude|kilo)
+        echo "  1. Open the workspace in your editor"
         echo "  2. Fill in memory/context.md and strategy/goals.md"
         echo "  3. Call ceo_boot to start"
         ;;
-    kilo)
-        echo "  1. Open the workspace in Kilo Code"
-        echo "  2. Fill in memory/context.md and strategy/goals.md"
-        echo "  3. Call ceo_boot to start"
-        ;;
-    opencode|goose)
+    cursor|windsurf|vscode|gemini|codex|zed|opencode|goose)
         echo "  1. Restart the client to load the new MCP server"
         echo "  2. Fill in memory/context.md and strategy/goals.md"
         echo "  3. Call ceo_boot to start"
