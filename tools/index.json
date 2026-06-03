@@ -157,6 +157,15 @@
       }
     },
     {
+      "name": "ceo_metrics",
+      "description": "Report autonomy metrics — task throughput, token/USD spend, decisions, pending approvals, and average self-eval score. Also writes reports/metrics.md.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
       "name": "ceo_request_approval",
       "description": "Open a human approval request (strategic decision, sensitive action, or budget overage). The daemon will not execute the referenced item until approved.",
       "inputSchema": {
