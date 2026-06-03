@@ -16,7 +16,13 @@ const path = require('path');
 const memory = require('./lib/memory');
 const orchestrator = require('./lib/orchestrator');
 
-const WORKSPACE = path.resolve(__dirname);
+// PKG_ROOT holds code + specs + templates (always the install dir).
+// WORKSPACE holds mutable state (db, tasks, memory, comms, reports) and can be
+// redirected via CEAUTO_WORKSPACE so tests and multiple projects stay isolated.
+const PKG_ROOT = path.resolve(__dirname);
+const WORKSPACE = process.env.CEAUTO_WORKSPACE
+  ? path.resolve(process.env.CEAUTO_WORKSPACE)
+  : PKG_ROOT;
 const TOOLS = require('./tools/index.json');
 
 // ── Utility ──────────────────────────────────────────────────────────────────
