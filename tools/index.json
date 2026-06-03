@@ -42,9 +42,24 @@
           "success_criteria": {
             "type": "string",
             "description": "Definition of done for this task"
+          },
+          "execute": {
+            "type": "boolean",
+            "description": "If true, immediately run the task through the agent's LLM (approval-first: defaults to false)"
           }
         },
         "required": ["task", "agent"]
+      }
+    },
+    {
+      "name": "ceo_run_task",
+      "description": "Execute a previously delegated task — claims it atomically, dispatches to the agent's LLM under budget control, writes the result, and marks it done",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string", "description": "ID of the task to run" }
+        },
+        "required": ["task_id"]
       }
     },
     {
