@@ -17,6 +17,18 @@ const memory = require('./lib/memory');
 const orchestrator = require('./lib/orchestrator');
 const tasks = require('./lib/tasks');
 const projection = require('./lib/projection');
+const runner = require('./lib/runner');
+
+const SESSION_ID = `S-${Date.now()}`;
+
+function loadSettings() {
+  try {
+    const yaml = require('js-yaml');
+    return yaml.load(fs.readFileSync(path.join(PKG_ROOT, 'config', 'settings.yaml'), 'utf-8')) || {};
+  } catch {
+    return {};
+  }
+}
 
 // PKG_ROOT holds code + specs + templates (always the install dir).
 // WORKSPACE holds mutable state (db, tasks, memory, comms, reports) and can be
@@ -161,12 +173,48 @@ async function handleDelegate(args) {
     agent, task_id: taskId, priority: task.priority || 'P2', deadline: task.deadline || 'TBD',
   });
 
+  // Approval-first: only invoke the LLM when explicitly asked to execute.
+  if (args.execute) {
+    const result = await runner.runTask(taskId, {
+      workspace: WORKSPACE,
+      pkgRoot: PKG_ROOT,
+      sessionId: SESSION_ID,
+      settings: loadSettings(),
+    });
+    return {
+      content: [{
+        type: 'text',
+        text: `Delegated and executed **${task.title}** (${taskId}) → **${agent}**.\nStatus: ${result.status}${result.reason ? ` — ${result.reason}` : ''}${result.resultPath ? `\nResult: ${result.resultPath}` : ''}`,
+      }],
+    };
+  }
+
   return {
     content: [{
       type: 'text',
-      text: `Delegated **${task.title}** (${taskId}) to **${agent}**.\nDirective ${directiveId} written to comms/directives.md.`,
+      text: `Delegated **${task.title}** (${taskId}) to **${agent}**.\nDirective ${directiveId} written to comms/directives.md.\n(Not executed — call ceo_run_task ${taskId} or pass execute:true to run it.)`,
     }],
   };
+}
+
+async function handleRunTask(args) {
+  const { task_id } = args;
+  if (!tasks.get(task_id)) {
+    return { content: [{ type: 'text', text: `Task ${task_id} not found.` }], isError: true };
+  }
+  const result = await runner.runTask(task_id, {
+    workspace: WORKSPACE,
+    pkgRoot: PKG_ROOT,
+    sessionId: SESSION_ID,
+    settings: loadSettings(),
+  });
+  const lines = [
+    `# Task ${task_id} — ${result.status}`,
+    result.reason ? `**Reason:** ${result.reason}` : '',
+    result.resultPath ? `**Result:** ${result.resultPath}` : '',
+    result.usage ? `**Tokens:** ${result.usage.input_tokens}+${result.usage.output_tokens} (${result.usage.model})` : '',
+  ].filter(Boolean);
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
 async function handleDecide(args) {
@@ -378,6 +426,7 @@ async function main() {
         case 'ceo_complete_task':   return await handleCompleteTask(args);
         case 'ceo_recall':          return await handleRecall(args);
         case 'ceo_workflow':        return await handleWorkflow(args);
+        case 'ceo_run_task':        return await handleRunTask(args);
         default:
           return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
       }
