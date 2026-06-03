@@ -53,13 +53,14 @@ describe('evaluator.selfEval', () => {
     });
     expect(res.score).toBe(2);
     expect(tasks.get('T-2').status).toBe('backlog');
-    expect(tasks.get('T-2').attempts).toBe(1);
+    expect(tasks.get('T-2').eval_attempts).toBe(1);
+    expect(tasks.get('T-2').attempts).toBe(0); // transport counter untouched
   });
 
   it('low score blocks once retries are exhausted', async () => {
-    const task = tasks.create({ id: 'T-3', title: 'Stubborn', agent: 'coder', status: 'done' });
-    // pretend it has already been retried twice
-    memory.getDb().prepare('UPDATE tasks SET attempts = 2 WHERE id = ?').run('T-3');
+    tasks.create({ id: 'T-3', title: 'Stubborn', agent: 'coder', status: 'done' });
+    // pretend it has already been quality-reviewed twice
+    memory.getDb().prepare('UPDATE tasks SET eval_attempts = 2 WHERE id = ?').run('T-3');
     const fresh = tasks.get('T-3');
     const dispatch = makeMockDispatch({ responder: () => '1 — still broken' });
 
