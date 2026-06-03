@@ -22,6 +22,7 @@ const approvals = require('./lib/approvals');
 const policy = require('./lib/policy');
 const budget = require('./lib/budget');
 const evaluator = require('./lib/evaluator');
+const heartbeat = require('./lib/heartbeat');
 
 function requestApprovalFor(task, reason) {
   approvals.request({ kind: 'budget', ref_id: task.id, summary: reason, detail: { agent: task.agent } });
@@ -265,6 +266,24 @@ async function handleDecide(args) {
   };
 }
 
+async function handleRunCycle() {
+  const res = await heartbeat.runCycle({
+    workspace: WORKSPACE,
+    pkgRoot: PKG_ROOT,
+    sessionId: SESSION_ID,
+    settings: loadSettings(),
+    requestApproval: requestApprovalFor,
+    evaluate: (ctx) => evaluator.selfEval(ctx),
+  });
+  projection.renderTasks(WORKSPACE);
+  return {
+    content: [{
+      type: 'text',
+      text: `Heartbeat cycle: ran ${res.ran}, done ${res.done}, blocked ${res.blocked}, vetoed ${res.vetoed}${res.paused ? ' — PAUSED (budget hold)' : ''}`,
+    }],
+  };
+}
+
 async function handleRequestApproval(args) {
   const { kind = 'action', ref_id = '', summary = '', detail = {} } = args;
   const id = approvals.request({ kind, ref_id, summary, detail });
@@ -481,6 +500,7 @@ async function main() {
         case 'ceo_recall':          return await handleRecall(args);
         case 'ceo_workflow':        return await handleWorkflow(args);
         case 'ceo_run_task':        return await handleRunTask(args);
+        case 'ceo_run_cycle':       return await handleRunCycle();
         case 'ceo_request_approval': return await handleRequestApproval(args);
         case 'ceo_resolve_approval': return await handleResolveApproval(args);
         case 'ceo_list_approvals':  return await handleListApprovals(args);

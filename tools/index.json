@@ -148,6 +148,15 @@
       }
     },
     {
+      "name": "ceo_run_cycle",
+      "description": "Run one autonomous heartbeat cycle — claims and executes up to max_tasks_per_cycle actionable tasks under budget control, self-evaluates, and logs. The same cycle the daemon runs on a schedule.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
       "name": "ceo_request_approval",
       "description": "Open a human approval request (strategic decision, sensitive action, or budget overage). The daemon will not execute the referenced item until approved.",
       "inputSchema": {
