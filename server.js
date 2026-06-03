@@ -24,6 +24,7 @@ const budget = require('./lib/budget');
 const evaluator = require('./lib/evaluator');
 const heartbeat = require('./lib/heartbeat');
 const hooksRunner = require('./lib/hooks-runner');
+const metrics = require('./lib/metrics');
 
 function fireHook(name, ctx = {}) {
   return hooksRunner.run(name, { workspace: WORKSPACE, ...ctx }, { pkgRoot: PKG_ROOT });
@@ -275,6 +276,11 @@ async function handleDecide(args) {
   };
 }
 
+async function handleMetrics() {
+  const md = metrics.writeReport(WORKSPACE);
+  return { content: [{ type: 'text', text: md }] };
+}
+
 async function handleRunCycle() {
   const res = await heartbeat.runCycle({
     workspace: WORKSPACE,
@@ -513,6 +519,7 @@ async function main() {
         case 'ceo_workflow':        return await handleWorkflow(args);
         case 'ceo_run_task':        return await handleRunTask(args);
         case 'ceo_run_cycle':       return await handleRunCycle();
+        case 'ceo_metrics':         return await handleMetrics();
         case 'ceo_request_approval': return await handleRequestApproval(args);
         case 'ceo_resolve_approval': return await handleResolveApproval(args);
         case 'ceo_list_approvals':  return await handleListApprovals(args);
