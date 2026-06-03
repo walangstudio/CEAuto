@@ -23,6 +23,11 @@ const policy = require('./lib/policy');
 const budget = require('./lib/budget');
 const evaluator = require('./lib/evaluator');
 const heartbeat = require('./lib/heartbeat');
+const hooksRunner = require('./lib/hooks-runner');
+
+function fireHook(name, ctx = {}) {
+  return hooksRunner.run(name, { workspace: WORKSPACE, ...ctx }, { pkgRoot: PKG_ROOT });
+}
 
 function requestApprovalFor(task, reason) {
   approvals.request({ kind: 'budget', ref_id: task.id, summary: reason, detail: { agent: task.agent } });
@@ -121,6 +126,7 @@ async function handleBoot() {
   writeFile('reports/standup.md', standup);
 
   memory.store('events', 'boot', { date: today(), files_loaded: loaded });
+  await fireHook('on-boot', { filesLoaded: loaded });
 
   return {
     content: [{
@@ -153,6 +159,7 @@ async function handleDelegate(args) {
     context_files,
   });
   projection.renderTasks(WORKSPACE);
+  await fireHook('on-delegate', { task: { id: taskId, title: task.title }, agent });
 
   // Log to agent-logs.md
   appendFile('memory/agent-logs.md', `\n## ${nowIso()}\n**Event:** Task Delegated\n**Task:** ${task.title}\n**ID:** ${taskId}\n**Agent:** ${agent}\n**Priority:** ${task.priority || 'P2'}\n`);
@@ -219,6 +226,7 @@ async function handleRunTask(args) {
     settings: loadSettings(),
     requestApproval: requestApprovalFor,
     evaluate: (ctx) => evaluator.selfEval(ctx),
+    hooks: fireHook,
   });
   const lines = [
     `# Task ${task_id} — ${result.status}`,
@@ -257,6 +265,7 @@ async function handleDecide(args) {
 
   appendFile('memory/decisions.md', entry);
   memory.store('decisions', decision, { rationale, persona, decision_type, impact, date, ref_id: refId, status });
+  await fireHook('on-decide', { decision, rationale, persona });
 
   return {
     content: [{
@@ -274,6 +283,7 @@ async function handleRunCycle() {
     settings: loadSettings(),
     requestApproval: requestApprovalFor,
     evaluate: (ctx) => evaluator.selfEval(ctx),
+    hooks: fireHook,
   });
   projection.renderTasks(WORKSPACE);
   return {
@@ -380,6 +390,7 @@ async function handleReportBlocker(args) {
 
   appendFile('memory/agent-logs.md', `\n## ${nowIso()}\n**Event:** Task Blocked\n**Task:** ${task_title || task_id}\n**Reason:** ${reason}\n**Agent:** ${agent}\n`);
   memory.store('events', `blocked: ${task_id}`, { reason, agent, date });
+  await fireHook('on-blocked', { task: { id: task_id, title: task_title }, reason, agent });
 
   return {
     content: [{ type: 'text', text: `Task ${task_id} flagged as blocked.\nReason: ${reason}` }],
@@ -397,6 +408,7 @@ async function handleCompleteTask(args) {
   projection.renderTasks(WORKSPACE);
 
   memory.store('events', `completed: ${task_id}`, { outcome, quality, agent, date });
+  await fireHook('on-complete', { task: { id: task_id, title: task_title }, outcome, agent });
 
   return {
     content: [{ type: 'text', text: `Task ${task_id} completed. Quality: ${quality}\nOutcome: ${outcome}` }],
