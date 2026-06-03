@@ -35,6 +35,21 @@ function requestApprovalFor(task, reason) {
   approvals.renderApprovals(WORKSPACE);
 }
 
+// One dependency set shared by every execution path (delegate execute,
+// ceo_run_task, heartbeat) so they behave identically.
+function runDeps(extra = {}) {
+  return {
+    workspace: WORKSPACE,
+    pkgRoot: PKG_ROOT,
+    sessionId: SESSION_ID,
+    settings: loadSettings(),
+    requestApproval: requestApprovalFor,
+    evaluate: (ctx) => evaluator.selfEval(ctx),
+    hooks: fireHook,
+    ...extra,
+  };
+}
+
 const SESSION_ID = `S-${Date.now()}`;
 
 function loadSettings() {
@@ -158,6 +173,7 @@ async function handleDelegate(args) {
     deadline: task.deadline,
     success_criteria,
     context_files,
+    needs_approval: args.needs_approval,
   });
   projection.renderTasks(WORKSPACE);
   await fireHook('on-delegate', { task: { id: taskId, title: task.title }, agent });
@@ -193,12 +209,7 @@ async function handleDelegate(args) {
 
   // Approval-first: only invoke the LLM when explicitly asked to execute.
   if (args.execute) {
-    const result = await runner.runTask(taskId, {
-      workspace: WORKSPACE,
-      pkgRoot: PKG_ROOT,
-      sessionId: SESSION_ID,
-      settings: loadSettings(),
-    });
+    const result = await runner.runTask(taskId, runDeps());
     return {
       content: [{
         type: 'text',
@@ -220,15 +231,7 @@ async function handleRunTask(args) {
   if (!tasks.get(task_id)) {
     return { content: [{ type: 'text', text: `Task ${task_id} not found.` }], isError: true };
   }
-  const result = await runner.runTask(task_id, {
-    workspace: WORKSPACE,
-    pkgRoot: PKG_ROOT,
-    sessionId: SESSION_ID,
-    settings: loadSettings(),
-    requestApproval: requestApprovalFor,
-    evaluate: (ctx) => evaluator.selfEval(ctx),
-    hooks: fireHook,
-  });
+  const result = await runner.runTask(task_id, runDeps());
   const lines = [
     `# Task ${task_id} — ${result.status}`,
     result.reason ? `**Reason:** ${result.reason}` : '',
@@ -282,15 +285,7 @@ async function handleMetrics() {
 }
 
 async function handleRunCycle() {
-  const res = await heartbeat.runCycle({
-    workspace: WORKSPACE,
-    pkgRoot: PKG_ROOT,
-    sessionId: SESSION_ID,
-    settings: loadSettings(),
-    requestApproval: requestApprovalFor,
-    evaluate: (ctx) => evaluator.selfEval(ctx),
-    hooks: fireHook,
-  });
+  const res = await heartbeat.runCycle(runDeps());
   projection.renderTasks(WORKSPACE);
   return {
     content: [{

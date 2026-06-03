@@ -73,9 +73,12 @@ async function main() {
   };
 
   if (once) {
-    const res = await heartbeat.runCycle(deps);
-    process.stderr.write(`CEAuto cycle complete: ${JSON.stringify(res.results || [])}\n`);
-    cleanup();
+    try {
+      const res = await heartbeat.runCycle(deps);
+      process.stderr.write(`CEAuto cycle complete: ${JSON.stringify(res.results || [])}\n`);
+    } finally {
+      cleanup(); // always release the lock, even if the cycle threw
+    }
     process.exit(0);
     return;
   }
@@ -91,7 +94,6 @@ async function main() {
   process.stderr.write(`CEAuto daemon up (pid ${pid}); heartbeat "${expr}"\n`);
 
   const job = cron.schedule(expr, async () => {
-    lock.refresh(pid);
     try {
       await heartbeat.runCycle(deps);
     } catch (e) {
@@ -99,15 +101,27 @@ async function main() {
     }
   });
 
-  const shutdown = () => {
+  // Keep the lock fresh on a fixed cadence independent of the heartbeat cron
+  // (which may be far longer than the lock TTL). If we lose the lock to another
+  // instance, stand down rather than run two daemons concurrently.
+  const refreshTimer = setInterval(() => {
+    if (!lock.refresh(pid)) {
+      process.stderr.write('CEAuto daemon: lost the lock to another instance — shutting down\n');
+      shutdown();
+    }
+  }, 60 * 1000);
+  if (refreshTimer.unref) refreshTimer.unref();
+
+  function shutdown() {
     try {
       job.stop();
     } catch {
       // ignore
     }
+    clearInterval(refreshTimer);
     cleanup();
     process.exit(0);
-  };
+  }
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }

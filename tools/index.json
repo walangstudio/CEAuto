@@ -46,6 +46,10 @@
           "execute": {
             "type": "boolean",
             "description": "If true, immediately run the task through the agent's LLM (approval-first: defaults to false)"
+          },
+          "needs_approval": {
+            "type": "boolean",
+            "description": "If true, the task cannot be executed (manually or by the daemon) until a human approves it via ceo_resolve_approval"
           }
         },
         "required": ["task", "agent"]
