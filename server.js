@@ -21,6 +21,7 @@ const runner = require('./lib/runner');
 const approvals = require('./lib/approvals');
 const policy = require('./lib/policy');
 const budget = require('./lib/budget');
+const evaluator = require('./lib/evaluator');
 
 function requestApprovalFor(task, reason) {
   approvals.request({ kind: 'budget', ref_id: task.id, summary: reason, detail: { agent: task.agent } });
@@ -216,6 +217,7 @@ async function handleRunTask(args) {
     sessionId: SESSION_ID,
     settings: loadSettings(),
     requestApproval: requestApprovalFor,
+    evaluate: (ctx) => evaluator.selfEval(ctx),
   });
   const lines = [
     `# Task ${task_id} — ${result.status}`,
