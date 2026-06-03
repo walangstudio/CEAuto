@@ -16,6 +16,7 @@ const heartbeat = require('../lib/heartbeat');
 const lock = require('../lib/lock');
 const evaluator = require('../lib/evaluator');
 const approvals = require('../lib/approvals');
+const hooksRunner = require('../lib/hooks-runner');
 
 const PKG_ROOT = path.resolve(__dirname, '..');
 const WORKSPACE = process.env.CEAUTO_WORKSPACE
@@ -43,6 +44,7 @@ function buildDeps(settings, pid) {
       approvals.request({ kind: 'budget', ref_id: task.id, summary: reason, detail: { agent: task.agent } });
       approvals.renderApprovals(WORKSPACE);
     },
+    hooks: (name, ctx) => hooksRunner.run(name, { workspace: WORKSPACE, ...ctx }, { pkgRoot: PKG_ROOT }),
   };
 }
 
