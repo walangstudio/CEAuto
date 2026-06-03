@@ -18,6 +18,14 @@ const orchestrator = require('./lib/orchestrator');
 const tasks = require('./lib/tasks');
 const projection = require('./lib/projection');
 const runner = require('./lib/runner');
+const approvals = require('./lib/approvals');
+const policy = require('./lib/policy');
+const budget = require('./lib/budget');
+
+function requestApprovalFor(task, reason) {
+  approvals.request({ kind: 'budget', ref_id: task.id, summary: reason, detail: { agent: task.agent } });
+  approvals.renderApprovals(WORKSPACE);
+}
 
 const SESSION_ID = `S-${Date.now()}`;
 
@@ -207,6 +215,7 @@ async function handleRunTask(args) {
     pkgRoot: PKG_ROOT,
     sessionId: SESSION_ID,
     settings: loadSettings(),
+    requestApproval: requestApprovalFor,
   });
   const lines = [
     `# Task ${task_id} — ${result.status}`,
@@ -221,26 +230,69 @@ async function handleDecide(args) {
   const { decision, rationale, persona = 'default', impact = '', decision_type = 'strategic' } = args;
   const date = today();
 
+  const gate = policy.requiresApproval({ decision_type }, loadSettings());
+  const refId = `DEC-${Date.now()}`;
+  let status = 'In effect';
+  let approvalNote = '';
+  if (gate.required) {
+    status = 'Pending approval';
+    approvals.request({ kind: 'decision', ref_id: refId, summary: decision, detail: { rationale, persona, decision_type } });
+    approvals.renderApprovals(WORKSPACE);
+    approvalNote = `\n⏸️ Gated: ${gate.reason}. Approve with ceo_resolve_approval.`;
+  }
+
   const entry = [
-    `\n## ${date} — ${decision_type}`,
+    `\n## ${date} — ${decision_type} (${refId})`,
     `**Decision:** ${decision}`,
     `**Rationale:** ${rationale}`,
     `**Persona:** ${persona}`,
     impact ? `**Impact:** ${impact}` : '',
-    `**Status:** In effect`,
+    `**Status:** ${status}`,
     `**Vetoed:** No`,
     `\n---\n`,
   ].filter(Boolean).join('\n');
 
   appendFile('memory/decisions.md', entry);
-  memory.store('decisions', decision, { rationale, persona, decision_type, impact, date });
+  memory.store('decisions', decision, { rationale, persona, decision_type, impact, date, ref_id: refId, status });
 
   return {
     content: [{
       type: 'text',
-      text: `Decision logged: **${decision}**\nPersona: ${persona} | Type: ${decision_type}`,
+      text: `Decision logged: **${decision}**\nPersona: ${persona} | Type: ${decision_type} | Status: ${status}${approvalNote}`,
     }],
   };
+}
+
+async function handleRequestApproval(args) {
+  const { kind = 'action', ref_id = '', summary = '', detail = {} } = args;
+  const id = approvals.request({ kind, ref_id, summary, detail });
+  approvals.renderApprovals(WORKSPACE);
+  return { content: [{ type: 'text', text: `Approval #${id} requested (${kind}). Pending human resolution.` }] };
+}
+
+async function handleResolveApproval(args) {
+  const { id, decision, by = 'human', note = '' } = args;
+  const row = approvals.resolve(id, decision, by, note);
+  if (!row) {
+    return { content: [{ type: 'text', text: `Approval #${id} not found or already resolved.` }], isError: true };
+  }
+  // Approving a budget hold lifts the autonomous-spend pause.
+  if (row.status === 'approved' && row.kind === 'budget') {
+    budget.resume();
+  }
+  approvals.renderApprovals(WORKSPACE);
+  return { content: [{ type: 'text', text: `Approval #${id} → ${row.status} by ${by}.` }] };
+}
+
+async function handleListApprovals(args) {
+  const rows = approvals.list(args.status);
+  if (!rows.length) {
+    return { content: [{ type: 'text', text: 'No approvals on record.' }] };
+  }
+  const text = rows
+    .map(r => `#${r.id} [${r.status}] ${r.kind} ${r.ref_id || ''} — ${r.summary || ''}`)
+    .join('\n');
+  return { content: [{ type: 'text', text: `# Approvals\n${text}` }] };
 }
 
 async function handleGenerateStandup(args) {
@@ -427,6 +479,9 @@ async function main() {
         case 'ceo_recall':          return await handleRecall(args);
         case 'ceo_workflow':        return await handleWorkflow(args);
         case 'ceo_run_task':        return await handleRunTask(args);
+        case 'ceo_request_approval': return await handleRequestApproval(args);
+        case 'ceo_resolve_approval': return await handleResolveApproval(args);
+        case 'ceo_list_approvals':  return await handleListApprovals(args);
         default:
           return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
       }

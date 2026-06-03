@@ -148,6 +148,45 @@
       }
     },
     {
+      "name": "ceo_request_approval",
+      "description": "Open a human approval request (strategic decision, sensitive action, or budget overage). The daemon will not execute the referenced item until approved.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string", "enum": ["decision", "task", "budget", "action"] },
+          "ref_id": { "type": "string", "description": "ID of the decision/task this gates" },
+          "summary": { "type": "string" },
+          "detail": { "type": "object" }
+        },
+        "required": ["kind"]
+      }
+    },
+    {
+      "name": "ceo_resolve_approval",
+      "description": "Approve or reject a pending approval. Approving a budget hold also resumes autonomous spend.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "number", "description": "Approval id" },
+          "decision": { "type": "string", "enum": ["approve", "reject"] },
+          "by": { "type": "string" },
+          "note": { "type": "string" }
+        },
+        "required": ["id", "decision"]
+      }
+    },
+    {
+      "name": "ceo_list_approvals",
+      "description": "List approvals, optionally filtered by status (pending/approved/rejected)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+        },
+        "required": []
+      }
+    },
+    {
       "name": "ceo_recall",
       "description": "Full-text search across all SQLite memory — decisions, agent outputs, events, directives",
       "inputSchema": {
