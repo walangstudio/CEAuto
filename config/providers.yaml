@@ -37,3 +37,22 @@ providers:
 #   researcher: claude-opus-4-6
 #   coder: claude-sonnet-4-6
 #   analyst: gpt-4o
+
+# ── Cost control ──────────────────────────────────────────────────────────────
+# Model pricing in USD per 1K tokens. `default` is used for unknown models.
+pricing:
+  default: { input: 0.003, output: 0.015 }
+  claude-sonnet-4-6: { input: 0.003, output: 0.015 }
+  claude-opus-4-8: { input: 0.015, output: 0.075 }
+  claude-haiku-4-5-20251001: { input: 0.001, output: 0.005 }
+  gpt-4o: { input: 0.005, output: 0.015 }
+  gemini-1.5-pro: { input: 0.00125, output: 0.005 }
+  llama3: { input: 0, output: 0 }
+  mock-model: { input: 0, output: 0 }
+
+# Hard spend caps. A breach pauses autonomous execution and opens an approval.
+budgets:
+  per_agent_daily_tokens: 200000
+  per_session_tokens: 100000
+  global_daily_tokens: 2000000
+  global_daily_usd: 25
