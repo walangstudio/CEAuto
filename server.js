@@ -15,6 +15,8 @@ const fs = require('fs');
 const path = require('path');
 const memory = require('./lib/memory');
 const orchestrator = require('./lib/orchestrator');
+const tasks = require('./lib/tasks');
+const projection = require('./lib/projection');
 
 // PKG_ROOT holds code + specs + templates (always the install dir).
 // WORKSPACE holds mutable state (db, tasks, memory, comms, reports) and can be
@@ -79,6 +81,9 @@ async function handleBoot() {
     backlog: 'tasks/backlog.md',
   };
 
+  // Materialise the task tables from SQLite so the standup reflects truth.
+  projection.renderTasks(WORKSPACE);
+
   const state = {};
   for (const [key, rel] of Object.entries(stateFiles)) {
     state[key] = readFile(rel);
@@ -112,23 +117,26 @@ async function handleBoot() {
 async function handleDelegate(args) {
   const { task, agent, context_files = [], success_criteria = '' } = args;
   const taskId = task.id || `T-${Date.now()}`;
-  const date = today();
 
-  // Append to in-progress.md
-  const row = `| ${taskId} | ${task.title} | ${agent} | ${date} | ${date} | 🟢 On Track | — | ${task.deadline || 'TBD'} |\n`;
-  const existing = readFile('tasks/in-progress.md');
-  if (existing) {
-    writeFile('tasks/in-progress.md', existing + row);
-  } else {
-    writeFile('tasks/in-progress.md',
-      `# In Progress\n\n| ID | Task | Agent | Started | Last Update | Status | Blocker | Next Checkpoint |\n|----|------|-------|---------|-------------|--------|---------|------------------|\n${row}`
-    );
-  }
+  // Register the task in SQLite, then project the markdown tables from it.
+  tasks.create({
+    id: taskId,
+    title: task.title,
+    description: task.description || task.title,
+    agent,
+    status: 'in-progress',
+    priority: task.priority || 'P2',
+    deadline: task.deadline,
+    success_criteria,
+    context_files,
+  });
+  projection.renderTasks(WORKSPACE);
 
   // Log to agent-logs.md
   appendFile('memory/agent-logs.md', `\n## ${nowIso()}\n**Event:** Task Delegated\n**Task:** ${task.title}\n**ID:** ${taskId}\n**Agent:** ${agent}\n**Priority:** ${task.priority || 'P2'}\n`);
 
   // Create directive
+  const date = today();
   const directiveId = nextDirectiveId();
   const directive = [
     `\n## Directive ${directiveId} — ${date}`,
@@ -189,6 +197,7 @@ async function handleDecide(args) {
 
 async function handleGenerateStandup(args) {
   const date = args.date || today();
+  projection.renderTasks(WORKSPACE);
   const state = {
     blocked: readFile('tasks/blocked.md'),
     inProgress: readFile('tasks/in-progress.md'),
@@ -239,18 +248,14 @@ async function handleCreateDirective(args) {
 }
 
 async function handleReportBlocker(args) {
-  const { task_id, task_title = '', reason, agent = 'Unassigned', action_needed = 'CEO to resolve' } = args;
+  const { task_id, task_title = '', reason, agent = 'Unassigned' } = args;
   const date = today();
 
-  const row = `| ${task_id} | ${task_title} | ${agent} | ${date} | ${reason} | ${action_needed} | No |\n`;
-  const existing = readFile('tasks/blocked.md');
-  if (existing) {
-    writeFile('tasks/blocked.md', existing + row);
-  } else {
-    writeFile('tasks/blocked.md',
-      `# Blocked Tasks\n\n| ID | Task | Agent | Blocked Since | Reason | Action Needed | Escalated |\n|----|------|-------|---------------|--------|---------------|-----------|\n${row}`
-    );
+  if (!tasks.get(task_id)) {
+    tasks.create({ id: task_id, title: task_title || task_id, agent, status: 'backlog' });
   }
+  tasks.block(task_id, { reason, agent });
+  projection.renderTasks(WORKSPACE);
 
   appendFile('memory/agent-logs.md', `\n## ${nowIso()}\n**Event:** Task Blocked\n**Task:** ${task_title || task_id}\n**Reason:** ${reason}\n**Agent:** ${agent}\n`);
   memory.store('events', `blocked: ${task_id}`, { reason, agent, date });
@@ -264,22 +269,11 @@ async function handleCompleteTask(args) {
   const { task_id, task_title = '', outcome = 'Done', quality = '⭐⭐⭐⭐', agent = '—', learnings = '' } = args;
   const date = today();
 
-  const row = `| ${task_id} | ${task_title} | ${agent} | ${date} | ${outcome} | ${quality} | ${learnings} |\n`;
-  const existing = readFile('tasks/done.md');
-  if (existing) {
-    writeFile('tasks/done.md', existing + row);
-  } else {
-    writeFile('tasks/done.md',
-      `# Completed\n\n| ID | Task | Agent | Completed | Outcome | Quality | Learnings |\n|----|------|-------|-----------|---------|---------|-----------|\n${row}`
-    );
+  if (!tasks.get(task_id)) {
+    tasks.create({ id: task_id, title: task_title || task_id, agent });
   }
-
-  // Remove from in-progress
-  const inProgress = readFile('tasks/in-progress.md');
-  if (inProgress) {
-    const lines = inProgress.split('\n').filter(line => !line.includes(`| ${task_id} |`));
-    writeFile('tasks/in-progress.md', lines.join('\n'));
-  }
+  tasks.complete(task_id, { outcome, quality, learnings, agent });
+  projection.renderTasks(WORKSPACE);
 
   memory.store('events', `completed: ${task_id}`, { outcome, quality, agent, date });
 
