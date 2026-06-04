@@ -56,6 +56,17 @@ describe('executors', () => {
     ).rejects.toThrow(/allowlist/);
   });
 
+  it('shell allowlist matches an equivalent but non-normalized full path', async () => {
+    // e.g. allowlist has "..././node" — path.normalize must still match the command.
+    const denormalized = path.join(path.dirname(NODE), '.', NODE_BASE);
+    const res = await executors.execute(
+      'shell',
+      { agent: 'ops', task: 'x', context: '', params: { command: NODE, args: ['-e', 'process.stdout.write("ok")'] } },
+      { shellAllowlist: [denormalized] }
+    );
+    expect(res.text).toBe('ok');
+  });
+
   it('mcp-tool executor calls a tool on another MCP server', async () => {
     const res = await executors.execute(
       'mcp-tool',
