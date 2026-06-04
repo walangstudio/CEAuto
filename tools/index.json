@@ -179,6 +179,15 @@
       }
     },
     {
+      "name": "ceo_org",
+      "description": "Show the org chart from config/org.yaml — roles, reporting lines, members, each role's daily budget envelope, and today's spend rolled up across the role's subtree.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
       "name": "ceo_request_approval",
       "description": "Open a human approval request (strategic decision, sensitive action, or budget overage). The daemon will not execute the referenced item until approved.",
       "inputSchema": {
