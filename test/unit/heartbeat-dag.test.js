@@ -1,7 +1,9 @@
+const fs = require('fs');
 const path = require('path');
 const memory = require('../../lib/memory');
 const tasks = require('../../lib/tasks');
 const budget = require('../../lib/budget');
+const events = require('../../lib/events');
 const heartbeat = require('../../lib/heartbeat');
 const { makeMockDispatch } = require('../helpers/mock-llm');
 const { makeTmpWorkspace, cleanup } = require('../helpers/tmp-workspace');
@@ -74,5 +76,20 @@ describe('heartbeat DAG scheduling', () => {
     expect(res.deadlocked).toBe(1);
     expect(tasks.get('B').status).toBe('blocked');
     expect(tasks.get('B').blocker).toMatch(/unknown dependency/);
+  });
+
+  it('emits a replayable event log + audit feed for the cycle', async () => {
+    tasks.create({ id: 'A', title: 'a', agent: 'researcher', status: 'backlog' });
+    tasks.create({ id: 'B', title: 'b', agent: 'researcher', status: 'backlog', depends_on: ['A'] });
+    const dispatch = makeMockDispatch();
+    await heartbeat.runCycle({ workspace: ws, dispatch, maxTasks: 10, settings });
+
+    // State re-derived from the event log alone matches the live task table.
+    const snap = events.reduce(events.all());
+    expect(snap.tasks.A.status).toBe(tasks.get('A').status);
+    expect(snap.tasks.B.status).toBe(tasks.get('B').status);
+    // A cycle.ran event was recorded and the audit feed was projected.
+    expect(events.all().some(e => e.type === 'cycle.ran')).toBe(true);
+    expect(fs.existsSync(path.join(ws, 'reports', 'events-feed.md'))).toBe(true);
   });
 });

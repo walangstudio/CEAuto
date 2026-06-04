@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.6.0] - 2026-06-04
+### Added
+- **Event bus + deterministic replay/audit (Pillar 4)** — append-only `events`
+  table (the autoincrement id is the total order; never updated/deleted).
+- `lib/events.js`: `emit()`, `list()/snapshot()`, a **pure `reduce()`** that folds
+  the task lifecycle into a derived state snapshot (so state is replayable from
+  the log alone), and a cursor-based `drain()` + `subscribe()` for reactive
+  processing.
+- Task lifecycle events (`task.created/claimed/completed/blocked/requeued`) are
+  emitted from `lib/tasks.js` — the single mutation chokepoint, so the log is
+  complete regardless of caller. The heartbeat emits `cycle.ran`.
+- The heartbeat **drains events each cycle** (cursor-based) and projects them to
+  an append-only audit feed `reports/events-feed.md` — the loop is now
+  event-driven, not just a cron tick.
+- `ceo_audit` tool (17th) — lists recent events and, with `replay:true`,
+  re-derives task state from the log and reports replay fidelity vs live (or a
+  past snapshot at `uptoId`).
+
+### Notes
+- Reactive sources beyond the heartbeat drain (file-watch, inbound webhook,
+  `@mention` triggers) are deferred to Pillar G.
+
 ## [0.5.0] - 2026-06-04
 ### Added
 - **Org graph + role budgets (Pillar 2)** — `config/org.yaml` models the company
