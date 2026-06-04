@@ -7,7 +7,6 @@ const runner = require('../../lib/runner');
 const { makeTmpWorkspace, cleanup } = require('../helpers/tmp-workspace');
 
 const NODE = process.execPath;
-const NODE_BASE = path.basename(NODE);
 const ECHO_SERVER = path.resolve(__dirname, '../fixtures/echo-mcp-server.js');
 
 describe('runner routes tasks through the configured executor', () => {
@@ -38,7 +37,7 @@ describe('runner routes tasks through the configured executor', () => {
         agent_params: {
           ops: { command: NODE, args: ['-e', 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>process.stdout.write("shell-ran:"+d.length))'] },
         },
-        shell: { allowlist: [NODE_BASE] },
+        shell: { allowlist: [NODE] },
       },
     };
 
