@@ -27,6 +27,7 @@ const hooksRunner = require('./lib/hooks-runner');
 const metrics = require('./lib/metrics');
 const org = require('./lib/org');
 const events = require('./lib/events');
+const learning = require('./lib/learning');
 
 function fireHook(name, ctx = {}) {
   return hooksRunner.run(name, { workspace: WORKSPACE, ...ctx }, { pkgRoot: PKG_ROOT });
@@ -328,6 +329,37 @@ async function handleAudit(args = {}) {
   return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
+async function handleInsights(args = {}) {
+  // Derive the agent list from actual dispatch history so any agent (incl.
+  // mcp-tool/shell runtimes) shows up, not just the seven hardcoded specialists.
+  let agents;
+  if (args.agent) {
+    agents = [args.agent];
+  } else {
+    const db = memory.getDb();
+    agents = db ? db.prepare("SELECT DISTINCT agent FROM evals WHERE agent IS NOT NULL ORDER BY agent").all().map(r => r.agent) : [];
+  }
+  const { playbooks, lessons } = learning.counts();
+  const lines = ['# Learning Insights\n', `Playbooks: ${playbooks} · Lessons: ${lessons}\n`];
+  lines.push('## Dispatch policy (per agent → model, cheapest-that-works)');
+  lines.push('| Agent | Model | Samples | Success | Avg score | Avg $ | Recommended |');
+  lines.push('|-------|-------|---------|---------|-----------|-------|-------------|');
+  const headerLen = lines.length;
+  for (const a of agents) {
+    const stats = learning.dispatchStats(a);
+    if (!stats.length) continue;
+    const rec = learning.recommendModel(a);
+    for (const s of stats) {
+      const success = ((s.successRate || 0) * 100).toFixed(0);
+      const avgScore = (s.avgScore || 0).toFixed(2);
+      const avgUsd = (s.avgUsd || 0).toFixed(4);
+      lines.push(`| ${a} | ${s.model} | ${s.samples} | ${success}% | ${avgScore} | $${avgUsd} | ${rec === s.model ? '✅' : ''} |`);
+    }
+  }
+  if (lines.length === headerLen) lines.push('_(no dispatch history yet)_');
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
 async function handleRunCycle() {
   const res = await heartbeat.runCycle(runDeps());
   projection.renderTasks(WORKSPACE);
@@ -534,7 +566,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.7.0' },
+    { name: 'ceauto', version: '0.8.0' },
     { capabilities: { tools: {} } }
   );
 
@@ -561,6 +593,7 @@ async function main() {
         case 'ceo_metrics':         return await handleMetrics();
         case 'ceo_org':             return await handleOrg();
         case 'ceo_audit':           return await handleAudit(args);
+        case 'ceo_insights':        return await handleInsights(args);
         case 'ceo_request_approval': return await handleRequestApproval(args);
         case 'ceo_resolve_approval': return await handleResolveApproval(args);
         case 'ceo_list_approvals':  return await handleListApprovals(args);

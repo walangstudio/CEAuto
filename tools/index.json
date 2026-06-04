@@ -201,6 +201,17 @@
       }
     },
     {
+      "name": "ceo_insights",
+      "description": "Learning-loop insights: playbook/lesson counts and the dispatch policy — per-agent success rate, average score and cost per model, with the cheapest historically-successful model recommended.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent": { "type": "string", "description": "Limit to a single agent (default: all sub-agents)" }
+        },
+        "required": []
+      }
+    },
+    {
       "name": "ceo_request_approval",
       "description": "Open a human approval request (strategic decision, sensitive action, or budget overage). The daemon will not execute the referenced item until approved.",
       "inputSchema": {

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.8.0] - 2026-06-04
+### Added
+- **Learning loop (Pillar 6)** — `lib/learning.js`, built on the existing evals +
+  memory FTS (no new tables):
+  - **Playbooks** — a high-scoring completion (eval ≥ 4) distills a reusable
+    `(task-type → approach)` note; the best match is injected as context before a
+    similar task runs, so proven approaches propagate.
+  - **Post-mortems** — a quality/failure block distills a lesson, recalled before
+    similar work, so the org stops repeating mistakes.
+  - **Dispatch policy** — success-rate + average score and cost per `(agent, model)`
+    from evals joined with the ledger; recommends the cheapest historically-good
+    model ("cheapest that works").
+- `ceo_insights` tool (18th) — playbook/lesson counts + the per-agent dispatch
+  policy table with the recommended model.
+
+### Changed
+- The runner injects recalled playbooks/lessons into a task's context before
+  dispatch, records a playbook on a high-scoring completion, and a lesson on a
+  block — all best-effort (never fail a task over the learning loop).
+
 ## [0.7.0] - 2026-06-04
 ### Added
 - **Inter-agent delegation & escalation (Pillar 5)** — an agent's answer may carry
