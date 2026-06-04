@@ -2,7 +2,7 @@
 
 ## What This Is
 
-CEAuto is an autonomous CEO agent MCP server. It exposes 17 tools that manage task delegation + execution, decision logging with approval gates, budget-controlled LLM dispatch, episodic memory, self-evaluation, multi-agent workflows, and a heartbeat daemon that pursues goals on its own.
+CEAuto is an autonomous CEO agent MCP server. It exposes 18 tools that manage task delegation + execution, decision logging with approval gates, budget-controlled LLM dispatch, episodic memory, self-evaluation, multi-agent workflows, and a heartbeat daemon that pursues goals on its own.
 
 ## MCP Server Configuration
 
@@ -49,6 +49,7 @@ Add to your Claude Code MCP config (`~/.claude/mcp.json` or project `.claude/mcp
 | `ceo_metrics` | Throughput, token/USD spend, decisions, approvals, avg eval score |
 | `ceo_org` | Org chart — roles, reporting lines, per-role budget envelope + today's rolled-up spend |
 | `ceo_audit` | Audit + replay the append-only event log; `replay:true` re-derives task state from the log and checks fidelity vs live |
+| `ceo_insights` | Learning loop — playbook/lesson counts + per-agent dispatch policy (success/cost per model, cheapest-that-works recommendation) |
 | `ceo_recall` | FTS search across all SQLite memory |
 | `ceo_workflow` | Run multi-agent workflow chain |
 

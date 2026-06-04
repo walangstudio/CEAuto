@@ -109,15 +109,17 @@ escalation approval up the reporting line — all recorded on the event bus
 escalates on its own. A higher-altitude LLM **planner** that pre-decomposes a big
 task into a DAG before execution can reuse the same directive path (future).
 
-## Pillar 6 — Learning loop (beyond Paperclip)
+## Pillar 6 — Learning loop (beyond Paperclip) ✅ (Phase F, shipped)
 
-- **Playbooks**: distill high-scoring `(task-type → approach)` pairs into reusable
-  playbooks (SQLite + FTS); inject the best match as context for similar future
-  tasks. Reuses existing `evals` + memory FTS.
-- **Dispatch policy**: track success-rate and cost per `(role, task-type, model)`;
-  the scheduler prefers the cheapest historically-successful option.
-- **Post-mortems**: blocked/failed tasks generate a lesson, recalled before
-  retrying a similar task. Closes the eval → improvement loop.
+`lib/learning.js`, on the existing evals + memory FTS (no new tables):
+- **Playbooks** — a high-scoring completion distills a `(task-type → approach)`
+  note; the best match is injected as context before a similar task runs. **Done.**
+- **Post-mortems** — a quality/failure block distills a lesson, recalled before
+  similar work. **Done.**
+- **Dispatch policy** — success-rate + avg score and cost per `(agent, model)`
+  from evals ⋈ ledger; recommends the cheapest historically-good model, surfaced
+  via `ceo_insights`. **Done (advisory).** Auto-switching the model in the adapter
+  from this recommendation is the remaining wiring (the signal is computed).
 
 ## Pillar 7 — Local dashboard + richer governance (optional)
 
