@@ -26,6 +26,7 @@ const heartbeat = require('./lib/heartbeat');
 const hooksRunner = require('./lib/hooks-runner');
 const metrics = require('./lib/metrics');
 const org = require('./lib/org');
+const events = require('./lib/events');
 
 function fireHook(name, ctx = {}) {
   return hooksRunner.run(name, { workspace: WORKSPACE, ...ctx }, { pkgRoot: PKG_ROOT });
@@ -301,6 +302,32 @@ async function handleOrg() {
   return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
+async function handleAudit(args = {}) {
+  const limit = args.limit || 25;
+  const allEvents = events.list();
+  const recent = allEvents.slice(-limit);
+  const lines = [`# Event Audit (${allEvents.length} total, showing last ${recent.length})\n`];
+  for (const e of recent) {
+    lines.push(`- #${e.id} ${e.created_at} \`${e.type}\` by ${e.actor} — ${JSON.stringify(e.payload)}`);
+  }
+  if (args.replay) {
+    // Re-derive task state from the log alone and compare to the live table.
+    const snap = events.snapshot(args.uptoId);
+    const ids = Object.keys(snap.tasks);
+    lines.push(`\n## Replay snapshot${args.uptoId ? ` @ event #${args.uptoId}` : ''} — ${ids.length} tasks`);
+    let drift = 0;
+    for (const id of ids) {
+      const replayed = snap.tasks[id].status;
+      const live = (tasks.get(id) || {}).status;
+      const match = args.uptoId ? '' : (replayed === live ? ' ✓' : ` ✗ live=${live}`);
+      if (!args.uptoId && replayed !== live) drift += 1;
+      lines.push(`- ${id}: ${replayed}${match}`);
+    }
+    if (!args.uptoId) lines.push(`\n**Replay fidelity:** ${ids.length - drift}/${ids.length} match live state`);
+  }
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
 async function handleRunCycle() {
   const res = await heartbeat.runCycle(runDeps());
   projection.renderTasks(WORKSPACE);
@@ -507,7 +534,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.5.0' },
+    { name: 'ceauto', version: '0.6.0' },
     { capabilities: { tools: {} } }
   );
 
@@ -533,6 +560,7 @@ async function main() {
         case 'ceo_run_cycle':       return await handleRunCycle();
         case 'ceo_metrics':         return await handleMetrics();
         case 'ceo_org':             return await handleOrg();
+        case 'ceo_audit':           return await handleAudit(args);
         case 'ceo_request_approval': return await handleRequestApproval(args);
         case 'ceo_resolve_approval': return await handleResolveApproval(args);
         case 'ceo_list_approvals':  return await handleListApprovals(args);

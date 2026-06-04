@@ -85,14 +85,17 @@ starving them. **Done.** Still open: a task emitting subtasks at runtime and an
 LLM **planner step** that decomposes a big task into a subtask DAG — these land
 with Pillar 5 (inter-agent delegation), where executors return `{ subtasks }`.
 
-## Pillar 4 — Reactive event bus (beyond cron)
+## Pillar 4 — Reactive event bus (beyond cron) ✅ (Phase D, core shipped)
 
-Append-only `events` table + subscriptions. Sources: `task.completed` →
-enqueue dependents; `@role` mention in a directive → assign; file-watch
-(chokidar) on a watched dir; inbound webhook (tiny optional HTTP listener) →
-create task. The heartbeat drains events, not just a cron tick; "continuous
-agents" = subscriptions. **Because state is event-sourced, we get replay + audit
-for free** (Pillar's payoff): rebuild any snapshot, diff two points in time.
+Append-only `events` table + subscriptions (`lib/events.js`). Task lifecycle +
+`cycle.ran` events are emitted from the mutation chokepoint, so the log is
+complete; the heartbeat drains them each cycle (cursor-based) into an audit feed.
+**The payoff is real: state is event-sourced, so a pure `reduce()` rebuilds task
+state from the log alone — replay + audit for free** (rebuild any past snapshot
+via `ceo_audit replay uptoId`, check fidelity vs live). The "apply twice →
+identical" determinism is tested. **Done** for the core. Deferred to Pillar G:
+the external reactive *sources* (file-watch via chokidar, inbound webhook,
+`@role` mention → assign) — the subscription mechanism is in place to host them.
 
 ## Pillar 5 — Inter-agent delegation & escalation
 
