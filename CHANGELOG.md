@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.0] - 2026-06-04
+### Added
+- **Inter-agent delegation & escalation (Pillar 5)** — an agent's answer may carry
+  a fenced `ceauto` directive (`lib/delegation.js`):
+  `{ subtasks: [...], escalate: {reason} }`. The `llm` executor surfaces it as
+  `{ subtasks, escalate }`.
+- On a genuinely-done task, the runner acts on the directive: it spawns child
+  tasks (parented via `parent_id`, scheduled by the DAG) **within the acting
+  role's `can_delegate_to` authority**, or opens an **escalation** approval up the
+  reporting line. Every action is logged to the event bus
+  (`task.delegated`/`task.escalated`/`delegation.denied`/`delegation.capped`).
+- `tasks.depth()` (delegation depth via the parent chain).
+- Settings `autonomy.max_delegation_depth` (3) and `max_subtasks_per_task` (5)
+  bound runaway fan-out.
+
+### Notes
+- Delegation is acted on only when the task ends `done` (not on an eval requeue),
+  so children aren't spawned for work about to be redone.
+
 ## [0.6.0] - 2026-06-04
 ### Added
 - **Event bus + deterministic replay/audit (Pillar 4)** — append-only `events`

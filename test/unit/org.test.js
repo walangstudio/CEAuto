@@ -36,6 +36,10 @@ describe('org graph', () => {
     expect(org.canDelegate('eng', 'security')).toBe(true); // eng -> eng
   });
 
+  it('a modelled role cannot delegate to an unknown (hallucinated) agent', () => {
+    expect(org.canDelegate('ceo', 'ghost-bot')).toBe(false);
+  });
+
   it('rolls a subtree spend up to ancestor budgets', () => {
     // coder belongs to eng (cap 400) under ceo (cap 1000). Pretend the whole eng
     // subtree has already spent 380 tokens; a 30-token task breaches eng's 400.

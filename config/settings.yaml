@@ -26,6 +26,9 @@ autonomy:
   max_tasks_per_cycle: 3
   per_heartbeat_token_budget: 40000
   daily_token_budget: 2000000
+  # Inter-agent delegation (Pillar 5) — bound runaway fan-out.
+  max_delegation_depth: 3      # how deep a subtask chain may go
+  max_subtasks_per_task: 5     # max children one task may spawn
 
 ## Executors (Pillar 1) — how each agent's work is actually run.
 ## Default is `llm`. Map an agent to `shell` or `mcp-tool` to use another runtime;
