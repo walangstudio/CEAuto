@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.0] - 2026-06-04
+### Added
+- **Org graph + role budgets (Pillar 2)** — `config/org.yaml` models the company
+  as a reporting tree of roles; agents bind to a role via `members`.
+- `lib/org.js` (pure): role resolution, reporting-line walk, subtree agent
+  collection, delegation authority (`can_delegate_to`), and a **budget rollup** —
+  an agent's spend counts against its role and every ancestor up to the root, so
+  a department envelope bounds the sum of its members and the root bounds the org.
+- `ceo_org` tool (16th) — renders the org chart with each role's daily budget and
+  today's rolled-up spend.
+- `budget.spentByAgents()` for subtree spend aggregation.
+
+### Changed
+- The runner now enforces the **role/department budget envelope** before dispatch
+  (in addition to per-agent/session/global caps): a department breach blocks the
+  task **without** globally pausing, so sibling departments keep working. Executor
+  resolution gains a per-role fallback (`role.executor`).
+
 ## [0.4.0] - 2026-06-04
 ### Added
 - **Task DAG + dependency-aware scheduler (Pillar 3)** — tasks gain `depends_on`

@@ -1,0 +1,45 @@
+# org.yaml — the company as a graph (Pillar 2 / Phase C).
+#
+# Roles form a reporting tree via `reports_to`. Agents bind to a role through
+# `members`. Each role may carry a daily BUDGET ENVELOPE that rolls up: an
+# agent's spend counts against its role AND every ancestor role, so a department
+# cap bounds the sum of its members, and the root bounds the whole org.
+# `can_delegate_to` lists the roles a role is allowed to assign work to.
+#
+# Budgets here are envelopes on top of the per-agent / global caps in
+# providers.yaml — whichever is tighter wins. Omit `budget` for an unlimited role
+# (still bounded by its ancestors and the global cap).
+
+roles:
+  ceo:
+    title: Chief Executive
+    budget: { daily_tokens: 2000000, daily_usd: 25 }
+    can_delegate_to: [engineering, research, operations, communications]
+
+  engineering:
+    title: Engineering
+    reports_to: ceo
+    members: [coder, security]
+    budget: { daily_tokens: 800000, daily_usd: 12 }
+    can_delegate_to: [engineering]
+
+  research:
+    title: Research & Analysis
+    reports_to: ceo
+    members: [researcher, analyst]
+    budget: { daily_tokens: 600000, daily_usd: 8 }
+    can_delegate_to: [research]
+
+  operations:
+    title: Operations
+    reports_to: ceo
+    members: [ops]
+    budget: { daily_tokens: 400000, daily_usd: 5 }
+    can_delegate_to: [operations]
+
+  communications:
+    title: Communications
+    reports_to: ceo
+    members: [writer, comms]
+    budget: { daily_tokens: 400000, daily_usd: 5 }
+    can_delegate_to: [communications]

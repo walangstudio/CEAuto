@@ -1,13 +1,21 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const org = require('../../lib/org');
 
 /**
  * Create an isolated throwaway workspace directory.
+ *
+ * Also resets the org singleton to an EMPTY org so tests are hermetic: the
+ * runner's role-budget gate becomes a no-op unless a test opts in via
+ * org.configure(). Without this, every runner/heartbeat test would silently
+ * load the production config/org.yaml and its department caps, coupling
+ * unrelated tests to that file.
  * @param {Object} seed - map of relative path -> file content to pre-create
  * @returns {string} absolute workspace path
  */
 function makeTmpWorkspace(seed = {}) {
+  org.configure({});
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ceauto-test-'));
   for (const [rel, content] of Object.entries(seed)) {
     const abs = path.join(dir, rel);
@@ -18,6 +26,7 @@ function makeTmpWorkspace(seed = {}) {
 }
 
 function cleanup(dir) {
+  org.resetConfig();
   if (!dir) return;
   try {
     fs.rmSync(dir, { recursive: true, force: true });

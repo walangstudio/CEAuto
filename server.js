@@ -25,6 +25,7 @@ const evaluator = require('./lib/evaluator');
 const heartbeat = require('./lib/heartbeat');
 const hooksRunner = require('./lib/hooks-runner');
 const metrics = require('./lib/metrics');
+const org = require('./lib/org');
 
 function fireHook(name, ctx = {}) {
   return hooksRunner.run(name, { workspace: WORKSPACE, ...ctx }, { pkgRoot: PKG_ROOT });
@@ -286,6 +287,20 @@ async function handleMetrics() {
   return { content: [{ type: 'text', text: md }] };
 }
 
+async function handleOrg() {
+  const nodes = org.tree({ spentByAgents: budget.spentByAgents });
+  if (!nodes.length) {
+    return { content: [{ type: 'text', text: 'No org modelled (config/org.yaml is empty).' }] };
+  }
+  const lines = ['# Org Chart\n', '| Role | Reports To | Members | Daily Budget | Spent today |', '|------|-----------|---------|--------------|-------------|'];
+  for (const n of nodes) {
+    const b = n.budget ? `${n.budget.daily_tokens ?? '∞'} tok / $${n.budget.daily_usd ?? '∞'}` : '—';
+    const spent = n.spent ? `${n.spent.tokens} tok / $${n.spent.usd.toFixed(2)}` : '—';
+    lines.push(`| ${n.role} | ${n.reports_to || '—'} | ${n.members.join(', ') || '—'} | ${b} | ${spent} |`);
+  }
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
 async function handleRunCycle() {
   const res = await heartbeat.runCycle(runDeps());
   projection.renderTasks(WORKSPACE);
@@ -492,7 +507,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.4.0' },
+    { name: 'ceauto', version: '0.5.0' },
     { capabilities: { tools: {} } }
   );
 
@@ -517,6 +532,7 @@ async function main() {
         case 'ceo_run_task':        return await handleRunTask(args);
         case 'ceo_run_cycle':       return await handleRunCycle();
         case 'ceo_metrics':         return await handleMetrics();
+        case 'ceo_org':             return await handleOrg();
         case 'ceo_request_approval': return await handleRequestApproval(args);
         case 'ceo_resolve_approval': return await handleResolveApproval(args);
         case 'ceo_list_approvals':  return await handleListApprovals(args);

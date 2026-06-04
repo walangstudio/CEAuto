@@ -63,13 +63,17 @@ runner stops caring *how* a task runs; budget/approval/veto/eval are unchanged.
 **Risk:** shell/webhook are the new attack surface → gate both behind
 `require_approval_for` + an allowlist; default-off.
 
-## Pillar 2 — Org as a graph
+## Pillar 2 — Org as a graph ✅ (Phase C, shipped)
 
-`org.yaml` → `roles` + `org_edges(reports_to)` tables. Agents bind to roles;
-each role carries an executor, a model tier, and a **budget envelope** that rolls
-up to the global cap (departmental spend, not just per-agent). Delegation
-authority = which roles a role may assign work to. Keeps single-tenant and
-file-defined — no SaaS/IAM/membership machinery.
+`config/org.yaml` → roles in a `reports_to` tree; agents bind via `members`
+(`lib/org.js`). Each role carries an optional executor and a **budget envelope
+that rolls up**: an agent's spend counts against its role and every ancestor, so
+a department cap bounds the sum of its members and the root bounds the org. The
+runner enforces it before dispatch (department breach blocks the task, no global
+pause). `can_delegate_to` encodes delegation authority (consumed by Pillar 5).
+`ceo_org` renders the chart + live spend. **Done.** Single-tenant, file-defined —
+no SaaS/IAM. Still open: per-role model tier in dispatch policy (folds into
+Pillar 6's cost-aware routing).
 
 ## Pillar 3 — Task DAG + dependency-aware scheduler ✅ (Phase B, shipped)
 
