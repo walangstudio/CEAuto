@@ -25,7 +25,16 @@
               "title": { "type": "string" },
               "description": { "type": "string" },
               "deadline": { "type": "string" },
-              "priority": { "type": "string", "enum": ["P1", "P2", "P3", "P4"] }
+              "priority": { "type": "string", "enum": ["P1", "P2", "P3", "P4"] },
+              "depends_on": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Task ids that must be done before this task is scheduled (DAG). The heartbeat only runs a task once all its deps are done; a missing dep or a cycle blocks the task with a reason."
+              },
+              "parent_id": {
+                "type": "string",
+                "description": "Parent task id when this is a subtask of a larger task"
+              }
             },
             "required": ["title"]
           },

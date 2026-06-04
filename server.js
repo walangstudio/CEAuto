@@ -174,6 +174,8 @@ async function handleDelegate(args) {
     success_criteria,
     context_files,
     needs_approval: args.needs_approval,
+    depends_on: task.depends_on,
+    parent_id: task.parent_id,
   });
   projection.renderTasks(WORKSPACE);
   await fireHook('on-delegate', { task: { id: taskId, title: task.title }, agent });
@@ -490,7 +492,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.3.0' },
+    { name: 'ceauto', version: '0.4.0' },
     { capabilities: { tools: {} } }
   );
 
