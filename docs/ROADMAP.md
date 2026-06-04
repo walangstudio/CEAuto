@@ -97,12 +97,17 @@ identical" determinism is tested. **Done** for the core. Deferred to Pillar G:
 the external reactive *sources* (file-watch via chokidar, inbound webhook,
 `@role` mention → assign) — the subscription mechanism is in place to host them.
 
-## Pillar 5 — Inter-agent delegation & escalation
+## Pillar 5 — Inter-agent delegation & escalation ✅ (Phase E, shipped)
 
-Executors may return structured `{ result, subtasks?[], escalate? }`. The runner,
-within the acting role's delegation authority, creates the child tasks (Pillar 3)
-or opens an escalation/approval up the reporting line (Pillar 2). Turns CEO-only
-fan-out into a real org that decomposes and escalates on its own.
+Executors return structured `{ text, usage, subtasks?[], escalate? }` (the `llm`
+executor parses a fenced `ceauto` directive; `lib/delegation.js`). On a done task
+the runner, **within the acting role's `can_delegate_to` authority** (Pillar 2),
+creates child tasks parented for the DAG scheduler (Pillar 3) or opens an
+escalation approval up the reporting line — all recorded on the event bus
+(Pillar 4). **Done.** Runaway fan-out is bounded by `max_delegation_depth` +
+`max_subtasks_per_task`. Turns CEO-only fan-out into an org that decomposes and
+escalates on its own. A higher-altitude LLM **planner** that pre-decomposes a big
+task into a DAG before execution can reuse the same directive path (future).
 
 ## Pillar 6 — Learning loop (beyond Paperclip)
 
