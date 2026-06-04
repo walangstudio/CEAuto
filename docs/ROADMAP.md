@@ -71,13 +71,15 @@ up to the global cap (departmental spend, not just per-agent). Delegation
 authority = which roles a role may assign work to. Keeps single-tenant and
 file-defined — no SaaS/IAM/membership machinery.
 
-## Pillar 3 — Task DAG + dependency-aware scheduler
+## Pillar 3 — Task DAG + dependency-aware scheduler ✅ (Phase B, shipped)
 
 Tasks gain `depends_on` (task-level) and `parent_id` (subtasks). The heartbeat
-becomes a topological scheduler: only run tasks whose deps are `done`; a task may
-emit subtasks; a completion unblocks dependents. A new optional **planner step**
-can decompose a big task into a subtask DAG before execution. Deterministic
-order; no flat-queue starvation.
+became a topological scheduler (`lib/scheduler.js`): only run tasks whose deps are
+`done`, ordered by priority then age; re-scan readiness after every run so a chain
+drains in one cycle; block unknown-dep / cyclic tasks with a reason instead of
+starving them. **Done.** Still open: a task emitting subtasks at runtime and an
+LLM **planner step** that decomposes a big task into a subtask DAG — these land
+with Pillar 5 (inter-agent delegation), where executors return `{ subtasks }`.
 
 ## Pillar 4 — Reactive event bus (beyond cron)
 

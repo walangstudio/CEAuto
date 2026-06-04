@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0] - 2026-06-04
+### Added
+- **Task DAG + dependency-aware scheduler (Pillar 3)** — tasks gain `depends_on`
+  (a list of task ids that must be `done` first) and `parent_id` (subtasks).
+  `lib/scheduler.js` (pure): `readyOrder()` returns only tasks whose deps are all
+  done, ordered by priority then age; `findDeadlocks()` detects unknown deps and
+  dependency cycles (Kahn's algorithm).
+- `ceo_delegate` accepts `task.depends_on` and `task.parent_id`.
+- `tasks.all()` / `tasks.children(parentId)` helpers; additive SQLite migration
+  adds the two columns to pre-existing databases.
+
+### Changed
+- The heartbeat is now a topological scheduler: it blocks deadlocked tasks
+  (unknown dep / cycle) with a clear reason instead of starving them, then drains
+  ready tasks and **re-scans readiness after every run**, so a whole dependency
+  chain can complete within a single cycle. Per-cycle budget and `maxTasks` caps
+  unchanged.
+
 ## [0.3.0] - 2026-06-04
 ### Added
 - **Executor abstraction (Pillar 1)** — `lib/executors/` with one `execute()` interface and three runtimes:
