@@ -27,6 +27,16 @@ autonomy:
   per_heartbeat_token_budget: 40000
   daily_token_budget: 2000000
 
+## Executors (Pillar 1) — how each agent's work is actually run.
+## Default is `llm`. Map an agent to `shell` or `mcp-tool` to use another runtime;
+## shell is allowlist-gated (empty allowlist = blocked).
+executors:
+  default: llm
+  by_agent: {}        # e.g. { ops: shell, research-bot: mcp-tool }
+  agent_params: {}    # e.g. { ops: { command: node, args: ["worker.js"] } }
+  shell:
+    allowlist: []     # basenames permitted, e.g. ["node", "git"]
+
 ## Session
 session:
   boot_timeout_seconds: 60
