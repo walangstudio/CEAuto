@@ -36,7 +36,7 @@ describe('executors', () => {
           args: ['-e', 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>process.stdout.write("ran:"+d))'],
         },
       },
-      { shellAllowlist: [NODE_BASE] }
+      { shellAllowlist: [NODE] }
     );
     expect(res.text).toBe('ran:payload');
     expect(res.usage.provider).toBe('shell');
@@ -45,6 +45,14 @@ describe('executors', () => {
   it('shell executor refuses a command not in the allowlist', async () => {
     await expect(
       executors.execute('shell', { agent: 'ops', task: 't', params: { command: NODE, args: ['-e', '0'] } }, { shellAllowlist: [] })
+    ).rejects.toThrow(/allowlist/);
+  });
+
+  it('shell allowlist is not bypassable by a path with an allowlisted basename', async () => {
+    // A full-path command must be allowlisted by its full path, so an arbitrary
+    // binary named "node" cannot satisfy a ["node"] (basename) allowlist.
+    await expect(
+      executors.execute('shell', { agent: 'ops', task: 't', params: { command: NODE, args: ['-e', '0'] } }, { shellAllowlist: [NODE_BASE] })
     ).rejects.toThrow(/allowlist/);
   });
 
@@ -63,5 +71,15 @@ describe('executors', () => {
     expect(res.text).toContain('"q":"hi"');
     expect(res.usage.provider).toBe('mcp');
     expect(res.usage.model).toBe('echo');
+  });
+
+  it('mcp-tool executor fails fast on a bad command instead of hanging', async () => {
+    await expect(
+      executors.execute(
+        'mcp-tool',
+        { agent: 'x', task: 't', context: '', params: { command: 'ceauto-no-such-binary', tool: 'echo', timeoutMs: 3000 } },
+        {}
+      )
+    ).rejects.toThrow();
   });
 });
