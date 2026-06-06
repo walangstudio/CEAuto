@@ -360,6 +360,37 @@ async function handleInsights(args = {}) {
   return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
+async function handleSources() {
+  const cfg = (loadSettings().sources) || {};
+  const fw = cfg.file_watch || {};
+  const wh = cfg.webhook || {};
+  const on = v => (v ? '🟢 on' : '⚪ off');
+  const lines = [
+    '# Reactive Sources\n',
+    `**Master switch:** ${on(cfg.enabled)} (sources only run while the daemon is up)\n`,
+    '| Source | Status | Config |',
+    '|--------|--------|--------|',
+    `| file-watch | ${on(cfg.enabled && fw.enabled)} | paths: ${(fw.paths || []).join(', ') || '—'} → ${fw.agent || 'ops'} |`,
+    `| webhook | ${on(cfg.enabled && wh.enabled)} | ${wh.host || '127.0.0.1'}:${wh.port || 8787}/webhook${wh.secret ? ' (secret set)' : ' (no secret)'} → ${wh.agent || 'ops'} |`,
+    `| @mention | (via webhook) | map: ${JSON.stringify((cfg.mention && cfg.mention.map) || {})} |`,
+  ];
+  // Recent source-triggered tasks. Bound the scan to the tail of the log (source.
+  // events span several types, so a single type= query can't fetch them) instead
+  // of loading every event ever emitted on each call.
+  const recent = events.list({ sinceId: Math.max(0, events.lastId() - 1000) })
+    .filter(e => e.type.startsWith('source.'))
+    .slice(-10);
+  lines.push(`\n## Recent source-triggered tasks (${recent.length})`);
+  if (!recent.length) {
+    lines.push('_(none yet)_');
+  } else {
+    for (const e of recent) {
+      lines.push(`- #${e.id} ${e.created_at} \`${e.type}\` → ${e.payload.task} (${e.payload.agent})`);
+    }
+  }
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
 async function handleRunCycle() {
   const res = await heartbeat.runCycle(runDeps());
   projection.renderTasks(WORKSPACE);
@@ -566,7 +597,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.8.0' },
+    { name: 'ceauto', version: '0.9.0' },
     { capabilities: { tools: {} } }
   );
 
@@ -594,6 +625,7 @@ async function main() {
         case 'ceo_org':             return await handleOrg();
         case 'ceo_audit':           return await handleAudit(args);
         case 'ceo_insights':        return await handleInsights(args);
+        case 'ceo_sources':         return await handleSources();
         case 'ceo_request_approval': return await handleRequestApproval(args);
         case 'ceo_resolve_approval': return await handleResolveApproval(args);
         case 'ceo_list_approvals':  return await handleListApprovals(args);
