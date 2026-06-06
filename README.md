@@ -1,6 +1,6 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.8.0-blue)
+![version](https://img.shields.io/badge/version-0.9.0-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -324,19 +324,35 @@ On Windows, use `C:\absolute\path\to\CEAuto\server.js` with backslashes or forwa
 
 ## How to Use
 
-After `ceo_boot`, CEAuto loads your context and strategy docs. Use the 9 tools:
+After `ceo_boot`, CEAuto loads your context and strategy docs. The 19 tools:
 
 | Tool | What it does |
 |------|-------------|
 | `ceo_boot` | Initialize session, load memory and strategy |
-| `ceo_delegate` | Assign a task to a specialist sub-agent |
-| `ceo_decide` | Log a decision with rationale |
+| `ceo_delegate` | Assign a task to a specialist sub-agent (`execute:true` runs it) |
+| `ceo_run_task` | Execute a delegated task: claim → budget → dispatch → self-eval |
+| `ceo_run_cycle` | Run one autonomous heartbeat cycle |
+| `ceo_decide` | Log a decision with rationale (strategic ones gate on approval) |
 | `ceo_generate_standup` | Run daily standup across active tasks |
 | `ceo_create_directive` | Issue a strategic directive |
 | `ceo_report_blocker` | Log and escalate a blocker |
 | `ceo_complete_task` | Mark a task complete and capture outcome |
+| `ceo_request_approval` | Open a human approval request |
+| `ceo_resolve_approval` | Approve/reject a pending request |
+| `ceo_list_approvals` | List approvals by status |
+| `ceo_metrics` | Throughput, token/USD spend, decisions, eval scores |
+| `ceo_org` | Org chart — roles, reporting lines, per-role budget + spend |
+| `ceo_audit` | Audit + replay the append-only event log |
+| `ceo_insights` | Learning loop — playbooks/lessons + dispatch policy |
+| `ceo_sources` | Reactive source status — file-watch / webhook / @mention |
 | `ceo_recall` | Semantic search across session memory |
 | `ceo_workflow` | Run a multi-step YAML workflow |
+
+Work runs through pluggable **executors** — `llm` (default), `mcp-tool` (any MCP
+server as an agent), `shell`, `webhook`, `claude-code` — with budget, approval,
+and veto gates wrapping all of them. **Reactive sources** (file-watch, inbound
+webhook, `@role` mention) can feed the queue from outside the heartbeat; all are
+default-off and opt-in.
 
 ## Sub-Agents
 

@@ -2,7 +2,7 @@
 
 ## What This Is
 
-CEAuto is an autonomous CEO agent MCP server. It exposes 18 tools that manage task delegation + execution, decision logging with approval gates, budget-controlled LLM dispatch, episodic memory, self-evaluation, multi-agent workflows, and a heartbeat daemon that pursues goals on its own.
+CEAuto is an autonomous CEO agent MCP server. It exposes 19 tools that manage task delegation + execution across pluggable runtimes (LLM, MCP server, shell, webhook, Claude Code), decision logging with approval gates, budget-controlled dispatch, episodic memory, self-evaluation, multi-agent workflows, reactive sources (file-watch / webhook / @mention), and a heartbeat daemon that pursues goals on its own.
 
 ## MCP Server Configuration
 
@@ -50,6 +50,7 @@ Add to your Claude Code MCP config (`~/.claude/mcp.json` or project `.claude/mcp
 | `ceo_org` | Org chart — roles, reporting lines, per-role budget envelope + today's rolled-up spend |
 | `ceo_audit` | Audit + replay the append-only event log; `replay:true` re-derives task state from the log and checks fidelity vs live |
 | `ceo_insights` | Learning loop — playbook/lesson counts + per-agent dispatch policy (success/cost per model, cheapest-that-works recommendation) |
+| `ceo_sources` | Reactive source status — file-watch / inbound webhook / @mention routing + recent source-triggered tasks |
 | `ceo_recall` | FTS search across all SQLite memory |
 | `ceo_workflow` | Run multi-agent workflow chain |
 
@@ -72,6 +73,16 @@ token budget, then self-evaluates and logs metrics.
 - **Approvals** (`lib/approvals.js`): strategic decisions, `needs_approval`
   tasks, and budget overage require human sign-off via `ceo_resolve_approval`.
 - **Veto**: list a task id in `comms/vetos.md` for a hard stop.
+
+### Executors & reactive sources (config/settings.yaml)
+- **Executors** (`executors.*`): each agent's work runs through one runtime —
+  `llm` (default), `mcp-tool` (call any MCP server as an agent), `shell`
+  (allowlisted), `webhook`/`http-webhook` (POST to an allowlisted host, redirects
+  refused), `claude-code` (headless `claude -p`, **default-off**). Budget,
+  approval, and veto wrap every runtime identically.
+- **Sources** (`sources.*`, all default-off): file-watch (chokidar), an inbound
+  webhook receiver (binds 127.0.0.1, **requires a secret**), and `@role` mentions
+  turn external signals into backlog tasks. They run inside the daemon.
 
 ## State (SQLite is the source of truth)
 

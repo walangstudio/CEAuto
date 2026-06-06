@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.9.0] - 2026-06-06
+### Added
+- **Reach executors (Pillar 1, G1)** — two new agent runtimes behind the existing
+  executor interface; governance/budget/veto wrap them like every other:
+  - **`webhook`** (alias `http-webhook`) — POST the task envelope to an external
+    worker and await a structured reply. Gated by an outbound-**host allowlist**
+    (empty = blocked); redirects are refused (`redirect: 'error'`) so an
+    allowlisted endpoint can't 3xx the call to an internal/metadata host (SSRF);
+    optional shared secret header; response size-capped.
+  - **`claude-code`** — run a coding task via a headless Claude Code subagent
+    (`claude -p`, prompt on stdin). **Default-off** (`executors.claude_code.enabled`)
+    because it can edit files; parses `{ result, usage }` from JSON output.
+  - `lib/executors/spawn-capture.js` — one hardened child-process runner shared by
+    `shell` and `claude-code` (single-settle, timeout → SIGTERM then SIGKILL,
+    output cap, stderr ring, EOF-on-stdin). `shell` refactored onto it.
+- **Reactive sources (Pillar 4, G1)** — feed the task queue from outside the cron
+  tick (`lib/sources.js`), all default-off:
+  - **file-watch** (chokidar) — a change under a watched path creates a task;
+    bursts for the same file are debounced.
+  - **inbound webhook** — a local HTTP receiver (`lib/http-server.js`, binds
+    127.0.0.1) turns a POST into a task; **requires a secret** (timing-safe check;
+    the daemon refuses to start the receiver without one).
+  - **`@role` mention** — a webhook body's text routes to the mentioned agent.
+  - A requested agent is honored only if it's on the roster; canonical task/agent
+    ids can't be overridden by attacker-controlled payload fields.
+- `ceo_sources` tool (19th) — read-only status of configured sources + recent
+  source-triggered tasks.
+
+### Changed
+- The runner threads `webhookAllowlist` + `claude_code` config into executor deps.
+- The daemon starts/stops reactive sources (when `sources.enabled`) and its
+  shutdown is re-entrancy-guarded.
+
 ## [0.8.0] - 2026-06-04
 ### Added
 - **Learning loop (Pillar 6)** — `lib/learning.js`, built on the existing evals +

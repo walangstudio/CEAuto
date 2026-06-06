@@ -212,6 +212,15 @@
       }
     },
     {
+      "name": "ceo_sources",
+      "description": "Show reactive source configuration and status — file-watch, inbound webhook, and @mention routing. Read-only; reports which sources are enabled and recent source-triggered tasks.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
       "name": "ceo_request_approval",
       "description": "Open a human approval request (strategic decision, sensitive action, or budget overage). The daemon will not execute the referenced item until approved.",
       "inputSchema": {

@@ -38,9 +38,13 @@ Three original bets Paperclip does not make:
 
 ---
 
-## Pillar 1 — Executor abstraction (the headline gap)
+## Pillar 1 — Executor abstraction (the headline gap) ✅ (Phase A + G1, shipped)
 
 One interface, many runtimes; governance/budget/veto wrap all of them uniformly.
+Shipped: `llm`, `mcp-tool`, `shell` (Phase A); **`webhook`/`http-webhook` and
+`claude-code` (G1)** — both gated (host allowlist / default-off) and sharing a
+hardened child-process runner (`lib/executors/spawn-capture.js`). `composite`
+remains future.
 
 ```
 // lib/executors/index.js
@@ -93,9 +97,11 @@ complete; the heartbeat drains them each cycle (cursor-based) into an audit feed
 **The payoff is real: state is event-sourced, so a pure `reduce()` rebuilds task
 state from the log alone — replay + audit for free** (rebuild any past snapshot
 via `ceo_audit replay uptoId`, check fidelity vs live). The "apply twice →
-identical" determinism is tested. **Done** for the core. Deferred to Pillar G:
-the external reactive *sources* (file-watch via chokidar, inbound webhook,
-`@role` mention → assign) — the subscription mechanism is in place to host them.
+identical" determinism is tested. **Done** for the core. **Reactive sources
+shipped in G1** (`lib/sources.js`): file-watch (chokidar, debounced), an inbound
+webhook receiver (`lib/http-server.js`, binds 127.0.0.1, secret-required), and
+`@role` mention → assign. All default-off and opt-in; they run inside the daemon
+and create backlog tasks the scheduler drains.
 
 ## Pillar 5 — Inter-agent delegation & escalation ✅ (Phase E, shipped)
 
@@ -139,7 +145,8 @@ task into a DAG before execution can reuse the same directive path (future).
 | D | 4 Event bus + replay | reactive + audit payoff | event-sourcing migration |
 | E | 5 Inter-agent delegation | real org behavior | runaway delegation → depth/budget caps |
 | F | 6 Learning loop | compounding advantage | eval-signal quality |
-| G | 1 (webhook/claude-code) + 7 dashboard/governance | polish + reach | new attack surface |
+| G1 ✅ | 1 (webhook/claude-code) + 4 (reactive sources) | reach | new attack surface — gated, default-off |
+| G2 | 7 dashboard + policy-as-code / quorum governance | polish | read-only projection + governance |
 
 Run A–C as the next milestone (the "real org that runs anything"); D–F as the
 "self-improving, replayable org" milestone; G as reach.

@@ -17,6 +17,8 @@ const lock = require('../lib/lock');
 const evaluator = require('../lib/evaluator');
 const approvals = require('../lib/approvals');
 const hooksRunner = require('../lib/hooks-runner');
+const sources = require('../lib/sources');
+const httpServer = require('../lib/http-server');
 
 const PKG_ROOT = path.resolve(__dirname, '..');
 const WORKSPACE = process.env.CEAUTO_WORKSPACE
@@ -45,6 +47,55 @@ function buildDeps(settings, pid) {
       approvals.renderApprovals(WORKSPACE);
     },
     hooks: (name, ctx) => hooksRunner.run(name, { workspace: WORKSPACE, ...ctx }, { pkgRoot: PKG_ROOT }),
+  };
+}
+
+/**
+ * Start the reactive sources (file-watch + inbound webhook) when enabled. All
+ * default-off. Returns an async stop() that tears every started source down.
+ */
+async function startSources(settings) {
+  const cfg = (settings && settings.sources) || {};
+  if (!cfg.enabled) return { stop: async () => {} };
+  const stoppers = [];
+
+  if (cfg.file_watch && cfg.file_watch.enabled && (cfg.file_watch.paths || []).length) {
+    const w = sources.watchFiles({ paths: cfg.file_watch.paths, agent: cfg.file_watch.agent || 'ops' });
+    stoppers.push(() => w.stop());
+    process.stderr.write(`CEAuto sources: watching ${cfg.file_watch.paths.join(', ')}\n`);
+  }
+
+  if (cfg.webhook && cfg.webhook.enabled) {
+    const wh = cfg.webhook;
+    if (!wh.secret) {
+      // Refuse to open an unauthenticated task-injection endpoint, even on
+      // localhost. Set sources.webhook.secret to enable the receiver.
+      process.stderr.write('CEAuto sources: webhook receiver NOT started — set sources.webhook.secret first\n');
+    } else {
+      const agents = Object.keys((settings && settings.agents) || {});
+      const handle = await httpServer.start({
+        host: wh.host || '127.0.0.1',
+        port: wh.port || 8787,
+        routes: {
+          'POST /webhook': sources.webhookHandler({
+            secret: wh.secret,
+            agent: wh.agent || 'ops',
+            map: (cfg.mention && cfg.mention.map) || {},
+            ...(agents.length ? { agents } : {}),
+          }),
+        },
+      });
+      stoppers.push(() => handle.stop());
+      process.stderr.write(`CEAuto sources: webhook receiver on http://${handle.host}:${handle.port}/webhook\n`);
+    }
+  }
+
+  return {
+    stop: async () => {
+      for (const s of stoppers) {
+        try { await s(); } catch { /* best effort */ }
+      }
+    },
   };
 }
 
@@ -93,6 +144,8 @@ async function main() {
   }
   process.stderr.write(`CEAuto daemon up (pid ${pid}); heartbeat "${expr}"\n`);
 
+  const sourcesHandle = await startSources(settings);
+
   const job = cron.schedule(expr, async () => {
     try {
       await heartbeat.runCycle(deps);
@@ -112,13 +165,21 @@ async function main() {
   }, 60 * 1000);
   if (refreshTimer.unref) refreshTimer.unref();
 
-  function shutdown() {
+  let shuttingDown = false;
+  async function shutdown() {
+    if (shuttingDown) return; // a second signal (or the refresh timer) must not re-enter
+    shuttingDown = true;
     try {
-      job.stop();
+      job.stop(); // stop the cron BEFORE awaiting teardown so no new cycle starts
     } catch {
       // ignore
     }
     clearInterval(refreshTimer);
+    try {
+      await sourcesHandle.stop();
+    } catch {
+      // best effort
+    }
     cleanup();
     process.exit(0);
   }

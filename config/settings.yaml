@@ -30,15 +30,39 @@ autonomy:
   max_delegation_depth: 3      # how deep a subtask chain may go
   max_subtasks_per_task: 5     # max children one task may spawn
 
-## Executors (Pillar 1) — how each agent's work is actually run.
-## Default is `llm`. Map an agent to `shell` or `mcp-tool` to use another runtime;
-## shell is allowlist-gated (empty allowlist = blocked).
+## Executors (Pillar 1 + G1) — how each agent's work is actually run.
+## Default is `llm`. Map an agent to another runtime via by_agent; the high-blast-
+## radius ones (shell, webhook, claude-code) are gated and default-off.
+##   llm | shell | mcp-tool | webhook (http-webhook) | claude-code
 executors:
   default: llm
   by_agent: {}        # e.g. { ops: shell, research-bot: mcp-tool }
   agent_params: {}    # e.g. { ops: { command: node, args: ["worker.js"] } }
   shell:
     allowlist: []     # basenames permitted, e.g. ["node", "git"]
+  webhook:
+    allowlist: []     # outbound hosts permitted, e.g. ["worker.internal", "n8n.example.com"]
+  claude_code:
+    enabled: false    # default OFF — claude-code can edit files; enable deliberately
+    command: claude   # the Claude Code CLI binary
+    # outputFormat: json   # parse { result, usage } from `claude -p --output-format json`
+
+## Reactive sources (Pillar 4, G1) — feed the queue from outside the cron tick.
+## Master switch + per-source switch, all default-off (new inbound surface).
+sources:
+  enabled: false
+  file_watch:
+    enabled: false
+    paths: []            # dirs/globs to watch; a change creates a task
+    agent: ops
+  webhook:
+    enabled: false
+    host: "127.0.0.1"    # local-first; do not bind 0.0.0.0 without a proxy
+    port: 8787
+    secret: ""           # required X-CEAuto-Secret header (empty = no auth — keep local)
+    agent: ops
+  mention:
+    map: {}              # @alias -> agent override, e.g. { eng: coder }
 
 ## Session
 session:
