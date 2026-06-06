@@ -19,6 +19,7 @@ const approvals = require('../lib/approvals');
 const hooksRunner = require('../lib/hooks-runner');
 const sources = require('../lib/sources');
 const httpServer = require('../lib/http-server');
+const dashboard = require('../lib/dashboard');
 
 const PKG_ROOT = path.resolve(__dirname, '..');
 const WORKSPACE = process.env.CEAUTO_WORKSPACE
@@ -99,6 +100,19 @@ async function startSources(settings) {
   };
 }
 
+/** Start the read-only dashboard server when enabled. Returns an async stop(). */
+async function startDashboard(settings) {
+  const cfg = (settings && settings.dashboard) || {};
+  if (!cfg.enabled) return { stop: async () => {} };
+  const handle = await httpServer.start({
+    host: cfg.host || '127.0.0.1',
+    port: cfg.port || 8788,
+    routes: dashboard.routes(),
+  });
+  process.stderr.write(`CEAuto dashboard on http://${handle.host}:${handle.port}/\n`);
+  return { stop: () => handle.stop() };
+}
+
 async function main() {
   const once = process.argv.includes('--once');
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
@@ -145,6 +159,7 @@ async function main() {
   process.stderr.write(`CEAuto daemon up (pid ${pid}); heartbeat "${expr}"\n`);
 
   const sourcesHandle = await startSources(settings);
+  const dashboardHandle = await startDashboard(settings);
 
   const job = cron.schedule(expr, async () => {
     try {
@@ -177,6 +192,7 @@ async function main() {
     clearInterval(refreshTimer);
     try {
       await sourcesHandle.stop();
+      await dashboardHandle.stop();
     } catch {
       // best effort
     }

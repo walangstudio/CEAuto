@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.10.0] - 2026-06-06
+### Added
+- **Read-only local dashboard (Pillar 7, G2)** — `lib/dashboard.js` projects the
+  same SQLite state as the markdown (tasks, approvals, org + spend, metrics,
+  recent events) at `GET /api/state` (JSON) and a self-refreshing HTML page at
+  `GET /`. Served on 127.0.0.1 by `bin/ceauto-dashboard.js` (`npm run dashboard`)
+  or by the daemon when `dashboard.enabled`. Pure projection — no writes, no SaaS.
+- **Policy-as-code (G2)** — optional `config/policy.yaml` (see
+  `config/policy.yaml.example`) of ordered rules: a rule matches on
+  `decision_type` / `kind` / `kind_in` / `budget_overage` / `est_cost_usd_over`
+  and sets `require_approval` + a `quorum`. First explicit verdict wins; absent /
+  no-match falls back to the existing `autonomy.*` gates (behaviour unchanged
+  unless you opt in).
+- **Multi-approver / quorum governance (G2)** — an approval can require N distinct
+  approvers (`approvals.request({ quorum })`); a single reject vetoes. `ceo_decide`
+  passes the policy's quorum through; `ceo_list_approvals`, the approvals markdown,
+  and the dashboard all show `approvers/quorum`.
+
+### Changed
+- `approvals.resolve` records per-approver votes and only flips to `approved` at
+  quorum; a repeat vote on a resolved approval is a no-op (returns null), so a
+  budget hold can't be resumed twice. `approvals.approverCount(row)` is the single
+  vote-counting source for every view.
+- Dashboard `esc()` escapes quotes (attribute-safe); the event projection omits
+  the raw payload (attacker-controlled for `source.*` events).
+
 ## [0.9.0] - 2026-06-06
 ### Added
 - **Reach executors (Pillar 1, G1)** — two new agent runtimes behind the existing

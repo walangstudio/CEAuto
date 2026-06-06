@@ -1,0 +1,39 @@
+# Policy-as-code (G2). Copy to config/policy.yaml to enable.
+#
+# Ordered rules; the FIRST matching rule decides. If no rule matches (or this
+# file is absent), the legacy settings.yaml `autonomy.*` gates apply unchanged.
+#
+# match fields (all listed must hold):
+#   decision_type: <string>        exact decision type
+#   kind: <string>                 exact action kind
+#   kind_in: [<string>, ...]       action kind is one of these
+#   budget_overage: true           action is a budget overage
+#   est_cost_usd_over: <number>    action.est_cost_usd strictly exceeds this
+#
+# outcome:
+#   require_approval: true|false   false short-circuits to allow
+#   reason: <string>               shown when gated
+#   quorum: <int>                  distinct approvers required (default 1)
+
+rules:
+  # One-way-door decisions need two sign-offs.
+  - match: { decision_type: strategic }
+    require_approval: true
+    reason: strategic (one-way door) decision
+    quorum: 2
+
+  # Sensitive actions need one approval.
+  - match: { kind_in: [shell_commands, external_communications, file_deletion, config_changes] }
+    require_approval: true
+    reason: sensitive action requires approval
+
+  # Any budget overage needs sign-off.
+  - match: { budget_overage: true }
+    require_approval: true
+    reason: budget overage
+
+  # Expensive runs ($50+) need two sign-offs.
+  - match: { est_cost_usd_over: 50 }
+    require_approval: true
+    reason: high estimated cost
+    quorum: 2

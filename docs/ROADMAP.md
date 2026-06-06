@@ -127,11 +127,16 @@ task into a DAG before execution can reuse the same directive path (future).
   via `ceo_insights`. **Done (advisory).** Auto-switching the model in the adapter
   from this recommendation is the remaining wiring (the signal is computed).
 
-## Pillar 7 — Local dashboard + richer governance (optional)
+## Pillar 7 — Local dashboard + richer governance ✅ (G2, shipped)
 
-- Read-only local HTTP status page (no SaaS) rendering org/tasks/approvals/metrics
-  from SQLite. Pure projection, like the markdown.
-- Policy-as-code (a rules file) + multi-approver / quorum for high-stakes gates.
+- **Read-only local HTTP status page** (`lib/dashboard.js` + `bin/ceauto-dashboard.js`,
+  binds 127.0.0.1) rendering tasks/approvals/org+spend/metrics/events from SQLite.
+  Pure projection, like the markdown; served standalone (`npm run dashboard`) or by
+  the daemon when `dashboard.enabled`. **Done.**
+- **Policy-as-code** (`config/policy.yaml`, optional) — ordered rules → require
+  approval + quorum; falls back to the legacy `autonomy.*` gates. **Done.**
+- **Multi-approver / quorum** (`approvals.js`) — N distinct approvers; one reject
+  vetoes; surfaced everywhere as `approvers/quorum`. **Done.**
 
 ---
 
@@ -146,7 +151,7 @@ task into a DAG before execution can reuse the same directive path (future).
 | E | 5 Inter-agent delegation | real org behavior | runaway delegation → depth/budget caps |
 | F | 6 Learning loop | compounding advantage | eval-signal quality |
 | G1 ✅ | 1 (webhook/claude-code) + 4 (reactive sources) | reach | new attack surface — gated, default-off |
-| G2 | 7 dashboard + policy-as-code / quorum governance | polish | read-only projection + governance |
+| G2 ✅ | 7 dashboard + policy-as-code / quorum governance | polish | read-only projection + governance |
 
 Run A–C as the next milestone (the "real org that runs anything"); D–F as the
 "self-improving, replayable org" milestone; G as reach.
