@@ -1,6 +1,6 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.9.0-blue)
+![version](https://img.shields.io/badge/version-0.10.0-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -353,6 +353,11 @@ server as an agent), `shell`, `webhook`, `claude-code` — with budget, approval
 and veto gates wrapping all of them. **Reactive sources** (file-watch, inbound
 webhook, `@role` mention) can feed the queue from outside the heartbeat; all are
 default-off and opt-in.
+
+**Governance**: strategic decisions / sensitive actions / budget overage gate on
+human approval — with optional **policy-as-code** (`config/policy.yaml`) and
+**multi-approver quorum**. A read-only **dashboard** (`npm run dashboard`,
+127.0.0.1) renders tasks, approvals, org spend, metrics, and events from SQLite.
 
 ## Sub-Agents
 

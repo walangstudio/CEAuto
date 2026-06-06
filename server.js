@@ -256,9 +256,10 @@ async function handleDecide(args) {
   let approvalNote = '';
   if (gate.required) {
     status = 'Pending approval';
-    approvals.request({ kind: 'decision', ref_id: refId, summary: decision, detail: { rationale, persona, decision_type } });
+    approvals.request({ kind: 'decision', ref_id: refId, summary: decision, detail: { rationale, persona, decision_type }, quorum: gate.quorum });
     approvals.renderApprovals(WORKSPACE);
-    approvalNote = `\n⏸️ Gated: ${gate.reason}. Approve with ceo_resolve_approval.`;
+    const q = gate.quorum > 1 ? ` (needs ${gate.quorum} approvers)` : '';
+    approvalNote = `\n⏸️ Gated: ${gate.reason}${q}. Approve with ceo_resolve_approval.`;
   }
 
   const entry = [
@@ -429,7 +430,10 @@ async function handleListApprovals(args) {
     return { content: [{ type: 'text', text: 'No approvals on record.' }] };
   }
   const text = rows
-    .map(r => `#${r.id} [${r.status}] ${r.kind} ${r.ref_id || ''} — ${r.summary || ''}`)
+    .map(r => {
+      const votes = (r.quorum || 1) > 1 ? ` [${approvals.approverCount(r)}/${r.quorum} approvers]` : '';
+      return `#${r.id} [${r.status}] ${r.kind} ${r.ref_id || ''} — ${r.summary || ''}${votes}`;
+    })
     .join('\n');
   return { content: [{ type: 'text', text: `# Approvals\n${text}` }] };
 }
@@ -597,7 +601,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.9.0' },
+    { name: 'ceauto', version: '0.10.0' },
     { capabilities: { tools: {} } }
   );
 

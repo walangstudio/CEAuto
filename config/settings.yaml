@@ -64,6 +64,16 @@ sources:
   mention:
     map: {}              # @alias -> agent override, e.g. { eng: coder }
 
+## Read-only local dashboard (Pillar 7, G2). `npm run dashboard`, or started by
+## the daemon when enabled. Local-first: binds 127.0.0.1. No writes, pure view.
+dashboard:
+  enabled: false
+  host: "127.0.0.1"
+  port: 8788
+
+## Governance (G2). Policy-as-code lives in config/policy.yaml (see
+## config/policy.yaml.example). Absent → the autonomy.* gates above apply.
+
 ## Session
 session:
   boot_timeout_seconds: 60

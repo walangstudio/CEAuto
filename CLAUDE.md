@@ -84,6 +84,15 @@ token budget, then self-evaluates and logs metrics.
   webhook receiver (binds 127.0.0.1, **requires a secret**), and `@role` mentions
   turn external signals into backlog tasks. They run inside the daemon.
 
+### Governance & dashboard (G2)
+- **Policy-as-code** (`config/policy.yaml`, optional — see `.example`): ordered
+  rules gate by `decision_type`/`kind`/`kind_in`/`budget_overage`/`est_cost_usd_over`
+  and set `require_approval` + `quorum`. Absent/no-match → legacy `autonomy.*` gates.
+- **Quorum**: an approval can need N distinct approvers; one reject vetoes. Shown
+  as `approvers/quorum` in `ceo_list_approvals`, `comms/approvals.md`, the dashboard.
+- **Dashboard** (`dashboard.*`, default-off): read-only status page on 127.0.0.1.
+  `npm run dashboard` (standalone) or auto-started by the daemon when enabled.
+
 ## State (SQLite is the source of truth)
 
 `db/memory.sqlite` (WAL) holds tasks, budget ledger, approvals, evals, and
