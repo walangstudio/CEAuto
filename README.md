@@ -1,6 +1,6 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.12.0-blue)
+![version](https://img.shields.io/badge/version-0.13.0-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -329,7 +329,7 @@ After `ceo_boot`, CEAuto loads your context and strategy docs. The 19 tools:
 | Tool | What it does |
 |------|-------------|
 | `ceo_boot` | Initialize session, load memory and strategy |
-| `ceo_delegate` | Assign a task to a specialist sub-agent (`execute:true` runs it) |
+| `ceo_delegate` | Assign a task to a specialist sub-agent (`execute:true` runs it; `task.plan:true` decomposes it into a subtask DAG) |
 | `ceo_run_task` | Execute a delegated task: claim → budget → dispatch → self-eval |
 | `ceo_run_cycle` | Run one autonomous heartbeat cycle |
 | `ceo_decide` | Log a decision with rationale (strategic ones gate on approval) |

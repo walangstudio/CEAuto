@@ -87,9 +87,11 @@ Tasks gain `depends_on` (task-level) and `parent_id` (subtasks). The heartbeat
 became a topological scheduler (`lib/scheduler.js`): only run tasks whose deps are
 `done`, ordered by priority then age; re-scan readiness after every run so a chain
 drains in one cycle; block unknown-dep / cyclic tasks with a reason instead of
-starving them. **Done.** Still open: a task emitting subtasks at runtime and an
-LLM **planner step** that decomposes a big task into a subtask DAG — these land
-with Pillar 5 (inter-agent delegation), where executors return `{ subtasks }`.
+starving them. **Done.** The LLM **planner step** that decomposes a big task into
+a subtask DAG also shipped (`lib/planner.js`): a `task.plan` task is decomposed
+via the agent's `ceauto` directive, and its subtasks — with sibling-title→id
+dependency mapping — are scheduled by this DAG. Runtime subtask emission already
+works via Pillar 5.
 
 ## Pillar 4 — Reactive event bus (beyond cron) ✅ (Phase D, core shipped)
 
@@ -114,8 +116,9 @@ creates child tasks parented for the DAG scheduler (Pillar 3) or opens an
 escalation approval up the reporting line — all recorded on the event bus
 (Pillar 4). **Done.** Runaway fan-out is bounded by `max_delegation_depth` +
 `max_subtasks_per_task`. Turns CEO-only fan-out into an org that decomposes and
-escalates on its own. A higher-altitude LLM **planner** that pre-decomposes a big
-task into a DAG before execution can reuse the same directive path (future).
+escalates on its own. The higher-altitude LLM **planner** that pre-decomposes a
+big task into a DAG before execution shipped on top of this directive path
+(`lib/planner.js`, `task.plan`) — see Pillar 3.
 
 ## Pillar 6 — Learning loop (beyond Paperclip) ✅ (Phase F, shipped)
 
