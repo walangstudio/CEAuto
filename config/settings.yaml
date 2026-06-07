@@ -71,6 +71,16 @@ dashboard:
   host: "127.0.0.1"
   port: 8788
 
+## Dispatch policy (Pillar 6) — when on, the runner routes each task to the
+## cheapest model that has historically cleared the bar for that agent
+## (learning.recommendDispatch, fed by evals ⋈ ledger). Default OFF: until you
+## opt in, the configured provider/model is used. Falls back to config when
+## there isn't enough signal yet. Inspect with ceo_insights.
+dispatch:
+  auto_route: false
+  min_samples: 3      # need at least this many scored runs on a model to trust it
+  min_success: 0.6    # and at least this success rate (eval >= pass score)
+
 ## Governance (G2). Policy-as-code lives in config/policy.yaml (see
 ## config/policy.yaml.example). Absent → the autonomy.* gates above apply.
 

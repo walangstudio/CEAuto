@@ -98,6 +98,57 @@ describe('runner.runTask', () => {
     expect(dispatch.calls).toHaveLength(0);
   });
 
+  function seedHistory(agent, model, provider, n = 4) {
+    const db = memory.getDb();
+    const evalRow = db.prepare('INSERT INTO evals (task_id, agent, score, rubric, feedback) VALUES (?, ?, ?, ?, ?)');
+    const ledRow = db.prepare('INSERT INTO budget_ledger (agent, task_id, provider, model, usd, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, 0, 0)');
+    for (let i = 0; i < n; i++) {
+      evalRow.run(`${model}-${i}`, agent, 5, 'q', 'good');
+      ledRow.run(agent, `${model}-${i}`, provider, model, 0.001);
+    }
+  }
+
+  it('auto-routes to the cheapest historically-good model when enabled', async () => {
+    seedHistory('researcher', 'haiku', 'anthropic');
+    tasks.create({ id: 'T-R1', title: 'route me', agent: 'researcher', status: 'in-progress' });
+    const dispatch = makeMockDispatch({ responder: () => 'done' });
+
+    const res = await runner.runTask('T-R1', {
+      workspace: ws, dispatch,
+      settings: { dispatch: { auto_route: true } },
+    });
+
+    expect(res.status).toBe('done');
+    expect(dispatch.calls.at(-1).route).toEqual({ model: 'haiku', provider: 'anthropic' });
+    expect(res.usage.model).toBe('haiku'); // ledger sees the routed model
+  });
+
+  it('does not route when auto_route is off, even with history', async () => {
+    seedHistory('researcher', 'haiku', 'anthropic');
+    tasks.create({ id: 'T-R2', title: 'no route', agent: 'researcher', status: 'in-progress' });
+    const dispatch = makeMockDispatch({ responder: () => 'done' });
+
+    const res = await runner.runTask('T-R2', { workspace: ws, dispatch });
+
+    expect(res.status).toBe('done');
+    expect(dispatch.calls.at(-1).route).toEqual({}); // no override passed
+    expect(res.usage.model).toBe('mock-model'); // configured/default model
+  });
+
+  it('falls back to config when auto_route is on but there is no signal', async () => {
+    tasks.create({ id: 'T-R3', title: 'cold start', agent: 'researcher', status: 'in-progress' });
+    const dispatch = makeMockDispatch({ responder: () => 'done' });
+
+    const res = await runner.runTask('T-R3', {
+      workspace: ws, dispatch,
+      settings: { dispatch: { auto_route: true } },
+    });
+
+    expect(res.status).toBe('done');
+    expect(dispatch.calls.at(-1).route).toEqual({}); // recommendDispatch -> null -> {}
+    expect(res.usage.model).toBe('mock-model');
+  });
+
   it('blocks and pauses when budget is exhausted', async () => {
     budget.configure({
       pricing: { default: { input: 0, output: 0 } },

@@ -78,4 +78,30 @@ describe('learning loop', () => {
     // suppress unused
     expect(budget).toBeTruthy();
   });
+
+  it('recommendDispatch returns the routable {model, provider} pair', () => {
+    const db = memory.getDb();
+    const evalRow = db.prepare('INSERT INTO evals (task_id, agent, score, rubric, feedback) VALUES (?, ?, ?, ?, ?)');
+    const ledRow = db.prepare('INSERT INTO budget_ledger (agent, task_id, provider, model, usd, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, 0, 0)');
+    for (let i = 0; i < 4; i++) {
+      evalRow.run(`h-${i}`, 'researcher', 5, 'q', 'good');
+      ledRow.run('researcher', `h-${i}`, 'anthropic', 'haiku', 0.001);
+      evalRow.run(`o-${i}`, 'researcher', 5, 'q', 'good');
+      ledRow.run('researcher', `o-${i}`, 'anthropic', 'opus', 0.05);
+    }
+    expect(learning.recommendDispatch('researcher')).toEqual({ model: 'haiku', provider: 'anthropic' });
+    expect(learning.recommendDispatch('writer')).toBe(null); // no signal
+  });
+
+  it('recommendDispatch carries a null provider for legacy rows (adapter then falls back)', () => {
+    const db = memory.getDb();
+    const evalRow = db.prepare('INSERT INTO evals (task_id, agent, score, rubric, feedback) VALUES (?, ?, ?, ?, ?)');
+    // legacy ledger rows: no provider column set -> NULL provider
+    const ledRow = db.prepare('INSERT INTO budget_ledger (agent, task_id, model, usd, input_tokens, output_tokens) VALUES (?, ?, ?, ?, 0, 0)');
+    for (let i = 0; i < 4; i++) {
+      evalRow.run(`s-${i}`, 'coder', 5, 'q', 'good');
+      ledRow.run('coder', `s-${i}`, 'sonnet', 0.01);
+    }
+    expect(learning.recommendDispatch('coder')).toEqual({ model: 'sonnet', provider: null });
+  });
 });
