@@ -1,6 +1,6 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.10.0-blue)
+![version](https://img.shields.io/badge/version-0.11.0-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -358,6 +358,13 @@ default-off and opt-in.
 human approval — with optional **policy-as-code** (`config/policy.yaml`) and
 **multi-approver quorum**. A read-only **dashboard** (`npm run dashboard`,
 127.0.0.1) renders tasks, approvals, org spend, metrics, and events from SQLite.
+
+**Learning loop**: high-scoring work distills reusable playbooks and blocks
+distill lessons, both recalled before similar tasks. The per-agent **dispatch
+policy** (success rate + cost per model, from evals ⋈ ledger) recommends the
+cheapest model that historically clears the bar; flip `dispatch.auto_route` on
+and the runner routes each task to it (default-off; falls back to the configured
+model until there's enough signal). Inspect both via `ceo_insights`.
 
 ## Sub-Agents
 

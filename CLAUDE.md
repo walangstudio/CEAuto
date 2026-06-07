@@ -84,6 +84,13 @@ token budget, then self-evaluates and logs metrics.
   webhook receiver (binds 127.0.0.1, **requires a secret**), and `@role` mentions
   turn external signals into backlog tasks. They run inside the daemon.
 
+### Dispatch policy (config/settings.yaml)
+- **Auto-route** (`dispatch.auto_route`, default-off): the runner routes each task
+  to the cheapest `(model, provider)` that has historically cleared the bar for
+  that agent (`learning.recommendDispatch`, evals ⋈ ledger). Off or under-sampled
+  (`min_samples` / `min_success`) → the configured provider/model is used. Only
+  the `llm` executor consumes the route; inspect status via `ceo_insights`.
+
 ### Governance & dashboard (G2)
 - **Policy-as-code** (`config/policy.yaml`, optional — see `.example`): ordered
   rules gate by `decision_type`/`kind`/`kind_in`/`budget_overage`/`est_cost_usd_over`

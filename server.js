@@ -341,7 +341,13 @@ async function handleInsights(args = {}) {
     agents = db ? db.prepare("SELECT DISTINCT agent FROM evals WHERE agent IS NOT NULL ORDER BY agent").all().map(r => r.agent) : [];
   }
   const { playbooks, lessons } = learning.counts();
+  const dispatchCfg = (loadSettings().dispatch) || {};
   const lines = ['# Learning Insights\n', `Playbooks: ${playbooks} · Lessons: ${lessons}\n`];
+  lines.push(
+    `Auto-route: ${dispatchCfg.auto_route ? '🟢 on' : '⚪ off'} ` +
+    `(min samples ${dispatchCfg.min_samples ?? 3}, min success ${Math.round((dispatchCfg.min_success ?? 0.6) * 100)}%) — ` +
+    `${dispatchCfg.auto_route ? 'tasks run on the ✅ model below' : 'using the configured model; recommendation is advisory'}\n`
+  );
   lines.push('## Dispatch policy (per agent → model, cheapest-that-works)');
   lines.push('| Agent | Model | Samples | Success | Avg score | Avg $ | Recommended |');
   lines.push('|-------|-------|---------|---------|-----------|-------|-------------|');
@@ -601,7 +607,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.10.0' },
+    { name: 'ceauto', version: '0.11.0' },
     { capabilities: { tools: {} } }
   );
 

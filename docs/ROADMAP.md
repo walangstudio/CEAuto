@@ -123,9 +123,13 @@ task into a DAG before execution can reuse the same directive path (future).
 - **Post-mortems** — a quality/failure block distills a lesson, recalled before
   similar work. **Done.**
 - **Dispatch policy** — success-rate + avg score and cost per `(agent, model)`
-  from evals ⋈ ledger; recommends the cheapest historically-good model, surfaced
-  via `ceo_insights`. **Done (advisory).** Auto-switching the model in the adapter
-  from this recommendation is the remaining wiring (the signal is computed).
+  from evals ⋈ ledger; recommends the cheapest historically-good `(model,
+  provider)`, surfaced via `ceo_insights`. **Done + wired.** With
+  `dispatch.auto_route: true` (default-off) the runner routes each task to the
+  recommendation (`learning.recommendDispatch`), falling back to the configured
+  model when off or under-sampled. A partial route is ignored to avoid a
+  cross-provider mismatch. Remaining nicety: epsilon-exploration so an abandoned
+  model can be re-sampled (today the policy only self-corrects downward).
 
 ## Pillar 7 — Local dashboard + richer governance ✅ (G2, shipped)
 

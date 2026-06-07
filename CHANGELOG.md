@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.11.0] - 2026-06-07
+### Added
+- **Auto-routed dispatch (Pillar 6, wiring)** — the learned dispatch policy is no
+  longer advisory-only. With `dispatch.auto_route: true` (default-off) the runner
+  routes each task to the cheapest `(model, provider)` that has historically
+  cleared the bar for that agent (`learning.recommendDispatch`, from evals ⋈
+  ledger). Off, or before there's enough signal (`min_samples` / `min_success`),
+  it falls back to the configured provider/model — behaviour unchanged unless you
+  opt in. `ceo_insights` shows the auto-route status alongside the policy table.
+
+### Changed
+- `learning.dispatchStats` now carries `provider` per model row; new
+  `learning.recommendDispatch()` returns the routable `{ model, provider }` pair
+  (`recommendModel()` delegates to it, unchanged return).
+- `llm-adapter.dispatch()` accepts an optional `route` override; a partial route
+  (model without provider, e.g. a legacy ledger row) is ignored rather than
+  pairing an override model with a config-resolved provider (cross-provider
+  mismatch guard). Only the `llm` executor consumes the route.
+
 ## [0.10.0] - 2026-06-06
 ### Added
 - **Read-only local dashboard (Pillar 7, G2)** — `lib/dashboard.js` projects the
