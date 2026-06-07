@@ -34,6 +34,10 @@
               "parent_id": {
                 "type": "string",
                 "description": "Parent task id when this is a subtask of a larger task"
+              },
+              "plan": {
+                "type": "boolean",
+                "description": "If true, run this as a PLANNING task: the agent decomposes it into a subtask DAG (via the LLM) instead of doing the work; the subtasks are spawned and scheduled automatically. Use with execute:true or ceo_run_task."
               }
             },
             "required": ["title"]

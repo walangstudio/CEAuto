@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.13.0] - 2026-06-07
+### Added
+- **LLM planner step (Pillars 3 + 5)** — a task delegated with `task.plan: true`
+  is *decomposed* into a subtask DAG instead of executed: the runner appends a
+  planning instruction (`lib/planner.js`), forces the `llm` executor, and the
+  agent's `ceauto` directive is spawned as child tasks via the existing
+  delegation path (within `can_delegate_to` authority + depth/fan-out caps). The
+  parent is marked `Planned`. Reuses all existing machinery — budget, veto,
+  approval, and the DAG scheduler apply to the children automatically.
+- `processDelegation` now maps a subtask's `depends_on` entries that name a
+  sibling's **title** to that sibling's new child id (forward order), so a plan
+  can express real inter-subtask ordering. Untrusted-output-safe: self-references
+  are dropped and a duplicate title keeps the first child's mapping. This also
+  improves Pillar 5 agent-emitted delegation.
+
+### Changed
+- `tasks` gains a `plan` column (additive migration, `INTEGER NOT NULL DEFAULT 0`).
+- `ceo_delegate` accepts `task.plan`.
+
 ## [0.12.0] - 2026-06-07
 ### Added
 - **`composite` executor (Pillar 1)** — `lib/executors/composite.js` runs an

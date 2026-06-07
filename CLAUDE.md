@@ -35,7 +35,7 @@ Add to your Claude Code MCP config (`~/.claude/mcp.json` or project `.claude/mcp
 | Tool | Description |
 |------|-------------|
 | `ceo_boot` | Boot sequence — reads state, returns standup |
-| `ceo_delegate` | Assign task to agent (`execute:true` runs it now; `needs_approval:true` gates it) |
+| `ceo_delegate` | Assign task to agent (`execute:true` runs it now; `needs_approval:true` gates it; `task.plan:true` decomposes it into a subtask DAG) |
 | `ceo_run_task` | Execute a delegated task: atomic claim → budget gate → LLM → self-eval → done |
 | `ceo_run_cycle` | Run one autonomous heartbeat cycle (the same cycle the daemon runs) |
 | `ceo_decide` | Log decision; strategic ones go Pending approval |
