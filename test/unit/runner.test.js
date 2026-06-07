@@ -4,6 +4,8 @@ const memory = require('../../lib/memory');
 const tasks = require('../../lib/tasks');
 const budget = require('../../lib/budget');
 const runner = require('../../lib/runner');
+const orchestrator = require('../../lib/orchestrator');
+const { estimateTokens } = require('../../lib/llm-adapter');
 const { makeMockDispatch } = require('../helpers/mock-llm');
 const { makeTmpWorkspace, cleanup } = require('../helpers/tmp-workspace');
 
@@ -147,6 +149,32 @@ describe('runner.runTask', () => {
     expect(res.status).toBe('done');
     expect(dispatch.calls.at(-1).route).toEqual({}); // recommendDispatch -> null -> {}
     expect(res.usage.model).toBe('mock-model');
+  });
+
+  it('scales the budget gate by composite step count (cost gated, not single-step)', async () => {
+    const desc = 'x'.repeat(400);
+    const spec = orchestrator.loadAgentSpec('builder', ws); // missing → deterministic fallback
+    const est = estimateTokens(`${spec}${desc}`); // runner: spec + '' context + taskText(desc)
+    // Cap sits at 3× a single step: a 5-step composite (5×est) must blow it; a
+    // single dispatch (1×est) would have passed — so a block proves the scaling.
+    budget.configure({
+      pricing: { default: { input: 0, output: 0 } },
+      budgets: { per_agent_daily_tokens: est * 3, per_session_tokens: 1e9, global_daily_tokens: 1e9, global_daily_usd: 1e9 },
+    });
+    tasks.create({ id: 'T-co5', title: 'big composite', description: desc, agent: 'builder', status: 'in-progress' });
+    const dispatch = makeMockDispatch();
+    const settings = {
+      autonomy: { self_evaluate: false },
+      executors: {
+        by_agent: { builder: 'composite' },
+        agent_params: { builder: { steps: Array.from({ length: 5 }, () => ({ executor: 'llm' })) } },
+      },
+    };
+
+    const res = await runner.runTask('T-co5', { workspace: ws, dispatch, settings });
+    expect(res.status).toBe('blocked');
+    expect(res.reason).toMatch(/cap/);
+    expect(dispatch.calls).toHaveLength(0); // gated before any sub-step ran
   });
 
   it('blocks and pauses when budget is exhausted', async () => {

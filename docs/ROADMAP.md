@@ -38,13 +38,15 @@ Three original bets Paperclip does not make:
 
 ---
 
-## Pillar 1 — Executor abstraction (the headline gap) ✅ (Phase A + G1, shipped)
+## Pillar 1 — Executor abstraction (the headline gap) ✅ (Phase A + G1 + composite, shipped)
 
 One interface, many runtimes; governance/budget/veto wrap all of them uniformly.
 Shipped: `llm`, `mcp-tool`, `shell` (Phase A); **`webhook`/`http-webhook` and
 `claude-code` (G1)** — both gated (host allowlist / default-off) and sharing a
-hardened child-process runner (`lib/executors/spawn-capture.js`). `composite`
-remains future.
+hardened child-process runner (`lib/executors/spawn-capture.js`); **`composite`**
+(`lib/executors/composite.js`) — an ordered chain/map of other executors, bounded
+to 10 steps with no nesting; the runner scales the budget gate by step count.
+**All runtimes done.**
 
 ```
 // lib/executors/index.js

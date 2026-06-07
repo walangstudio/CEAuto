@@ -60,6 +60,37 @@ describe('runner routes tasks through the configured executor', () => {
     expect(tasks.get('T-gated').status).toBe('in-progress'); // not claimed, not run
   });
 
+  it('runs an agent via the composite executor (chain of llm + shell)', async () => {
+    tasks.create({ id: 'T-co', title: 'composite task', description: 'build', agent: 'builder', status: 'in-progress' });
+    const dispatch = (agentId, _spec, task) => Promise.resolve({
+      text: `planned:${task}`,
+      usage: { input_tokens: 4, output_tokens: 2, model: 'mock-model', provider: 'mock' },
+    });
+    const settings = {
+      autonomy: { self_evaluate: false },
+      executors: {
+        default: 'llm',
+        by_agent: { builder: 'composite' },
+        agent_params: {
+          builder: {
+            mode: 'chain',
+            steps: [
+              { executor: 'llm' },
+              { executor: 'shell', params: { command: NODE, args: ['-e', 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>process.stdout.write("built:"+d.length))'] } },
+            ],
+          },
+        },
+        shell: { allowlist: [NODE] },
+      },
+    };
+
+    const res = await runner.runTask('T-co', { workspace: ws, dispatch, settings });
+    expect(res.status).toBe('done');
+    expect(res.usage.provider).toBe('composite');
+    const out = fs.readFileSync(path.join(ws, res.resultPath), 'utf-8');
+    expect(out).toMatch(/^built:/); // last step (shell) is the pipeline result
+  });
+
   it('runs an agent via the mcp-tool executor (another MCP server)', async () => {
     tasks.create({ id: 'T-mcp', title: 'mcp task', description: 'sizing', agent: 'research-bot', status: 'in-progress' });
     const settings = {

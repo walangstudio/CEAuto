@@ -1,6 +1,6 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.11.0-blue)
+![version](https://img.shields.io/badge/version-0.12.0-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -349,8 +349,9 @@ After `ceo_boot`, CEAuto loads your context and strategy docs. The 19 tools:
 | `ceo_workflow` | Run a multi-step YAML workflow |
 
 Work runs through pluggable **executors** — `llm` (default), `mcp-tool` (any MCP
-server as an agent), `shell`, `webhook`, `claude-code` — with budget, approval,
-and veto gates wrapping all of them. **Reactive sources** (file-watch, inbound
+server as an agent), `shell`, `webhook`, `claude-code`, and `composite` (an
+ordered chain/map of other executors) — with budget, approval, and veto gates
+wrapping all of them. **Reactive sources** (file-watch, inbound
 webhook, `@role` mention) can feed the queue from outside the heartbeat; all are
 default-off and opt-in.
 

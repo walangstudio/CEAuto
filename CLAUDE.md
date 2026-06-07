@@ -2,7 +2,7 @@
 
 ## What This Is
 
-CEAuto is an autonomous CEO agent MCP server. It exposes 19 tools that manage task delegation + execution across pluggable runtimes (LLM, MCP server, shell, webhook, Claude Code), decision logging with approval gates, budget-controlled dispatch, episodic memory, self-evaluation, multi-agent workflows, reactive sources (file-watch / webhook / @mention), and a heartbeat daemon that pursues goals on its own.
+CEAuto is an autonomous CEO agent MCP server. It exposes 19 tools that manage task delegation + execution across pluggable runtimes (LLM, MCP server, shell, webhook, Claude Code, composite), decision logging with approval gates, budget-controlled dispatch, episodic memory, self-evaluation, multi-agent workflows, reactive sources (file-watch / webhook / @mention), and a heartbeat daemon that pursues goals on its own.
 
 ## MCP Server Configuration
 
@@ -78,7 +78,8 @@ token budget, then self-evaluates and logs metrics.
 - **Executors** (`executors.*`): each agent's work runs through one runtime —
   `llm` (default), `mcp-tool` (call any MCP server as an agent), `shell`
   (allowlisted), `webhook`/`http-webhook` (POST to an allowlisted host, redirects
-  refused), `claude-code` (headless `claude -p`, **default-off**). Budget,
+  refused), `claude-code` (headless `claude -p`, **default-off**), `composite`
+  (an ordered `chain`/`map` of other executors, max 10 steps, no nesting). Budget,
   approval, and veto wrap every runtime identically.
 - **Sources** (`sources.*`, all default-off): file-watch (chokidar), an inbound
   webhook receiver (binds 127.0.0.1, **requires a secret**), and `@role` mentions
