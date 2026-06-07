@@ -33,10 +33,13 @@ autonomy:
 ## Executors (Pillar 1 + G1) — how each agent's work is actually run.
 ## Default is `llm`. Map an agent to another runtime via by_agent; the high-blast-
 ## radius ones (shell, webhook, claude-code) are gated and default-off.
-##   llm | shell | mcp-tool | webhook (http-webhook) | claude-code
+##   llm | shell | mcp-tool | webhook (http-webhook) | claude-code | composite
+## `composite` runs an ordered list of executors as one task (mode: chain|map):
+##   agent_params: { builder: { mode: chain, steps: [ { executor: llm },
+##                                                     { executor: shell, params: { command: node, args: ["build.js"] } } ] } }
 executors:
   default: llm
-  by_agent: {}        # e.g. { ops: shell, research-bot: mcp-tool }
+  by_agent: {}        # e.g. { ops: shell, research-bot: mcp-tool, builder: composite }
   agent_params: {}    # e.g. { ops: { command: node, args: ["worker.js"] } }
   shell:
     allowlist: []     # basenames permitted, e.g. ["node", "git"]

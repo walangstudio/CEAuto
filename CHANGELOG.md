@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.12.0] - 2026-06-07
+### Added
+- **`composite` executor (Pillar 1)** — `lib/executors/composite.js` runs an
+  ordered list of executors as one task: `chain` (a pipeline — each step's output
+  feeds the next; result = the last step) or `map` (every step on the same input;
+  result = their outputs reduced into one labelled document). Usage is summed
+  across steps so the ledger records the true total spend (`provider: composite`).
+  Bounded: max 10 steps, no nested composite. Closes Pillar 1's last "future"
+  runtime; budget/approval/veto still gate the whole task once.
+
+### Changed
+- The runner scales its pre-dispatch budget estimate by a composite's step count,
+  so the gate reflects the multi-step cost (a retry re-runs the whole chain)
+  rather than a single step.
+
 ## [0.11.0] - 2026-06-07
 ### Added
 - **Auto-routed dispatch (Pillar 6, wiring)** — the learned dispatch policy is no
