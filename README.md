@@ -1,12 +1,53 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.14.0-blue)
+![version](https://img.shields.io/badge/version-0.14.1-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-Autonomous CEO agent for Claude via MCP. Delegates tasks to 7 specialist sub-agents, runs YAML-defined workflows, tracks decisions and blockers, and maintains persistent memory across sessions.
+An autonomous "CEO" that runs as an MCP server. Give it goals; it splits them into
+tasks, hands each to a specialist sub-agent, and runs them on a heartbeat under
+hard budget and approval limits. Every task, decision, and token is logged to a
+SQLite event log you can replay. Bring any LLM provider, or run it fully offline to
+kick the tires.
+
+## Try it locally (no API key)
+
+A built-in stub provider runs the whole loop offline at zero spend. State lands in
+a throwaway folder, never in the repo.
+
+```bash
+cd CEAuto
+npm install
+node examples/demo.mjs ./.demo-workspace      # any path; omit it to use the OS temp dir
+```
+
+The demo boots, queues a task for the `researcher`, runs one heartbeat that
+executes it through the mock provider, then prints metrics and learning insights:
+
+```
+1. Connected: 19 tools
+2. ceo_boot: load state, return the standup
+3. ceo_delegate: queue work for the researcher
+4. ceo_run_cycle: ran 1, done 1, blocked 0, vetoed 0
+5. ceo_metrics: Done 1 · Throughput (7d) 1 · Today 561 tokens ($0) · Avg self-eval 4/5
+6. ceo_insights: Playbooks 1 · dispatch researcher -> mock-model (100%)
+```
+
+Then look in the workspace:
+
+- `tasks/done.md`: the finished task
+- `reports/tasks/*.md`: the agent's output
+- `db/memory.sqlite`: tasks, budget ledger, evals, event log
+
+Same data as a read-only status page:
+
+```bash
+CEAUTO_WORKSPACE=./.demo-workspace npm run dashboard    # http://127.0.0.1:8788
+```
+
+On PowerShell, set the env var first: `$env:CEAUTO_WORKSPACE='./.demo-workspace'; npm run dashboard`.
 
 ## Quick Start
 
@@ -341,34 +382,67 @@ After `ceo_boot`, CEAuto loads your context and strategy docs. The 19 tools:
 | `ceo_resolve_approval` | Approve/reject a pending request |
 | `ceo_list_approvals` | List approvals by status |
 | `ceo_metrics` | Throughput, token/USD spend, decisions, eval scores |
-| `ceo_org` | Org chart — roles, reporting lines, per-role budget + spend |
+| `ceo_org` | Org chart: roles, reporting lines, per-role budget + spend |
 | `ceo_audit` | Audit + replay the append-only event log |
-| `ceo_insights` | Learning loop — playbooks/lessons + dispatch policy |
-| `ceo_sources` | Reactive source status — file-watch / webhook / @mention |
+| `ceo_insights` | Learning loop: playbooks/lessons + dispatch policy |
+| `ceo_sources` | Reactive source status: file-watch / webhook / @mention |
 | `ceo_recall` | Semantic search across session memory |
 | `ceo_workflow` | Run a multi-step YAML workflow |
 
-Work runs through pluggable **executors** — `llm` (default), `mcp-tool` (any MCP
-server as an agent), `shell`, `webhook`, `claude-code`, and `composite` (an
-ordered chain/map of other executors) — with budget, approval, and veto gates
-wrapping all of them. **Reactive sources** (file-watch, inbound
-webhook, `@role` mention) can feed the queue from outside the heartbeat; all are
-default-off and opt-in.
+### Sample usage
 
-**Governance**: strategic decisions / sensitive actions / budget overage gate on
-human approval — with optional **policy-as-code** (`config/policy.yaml`) and
-**multi-approver quorum**. A read-only **dashboard** (`npm run dashboard`,
-127.0.0.1) renders tasks, approvals, org spend, metrics, and events from SQLite.
+Once installed, drive it from Claude (or any MCP client) in plain language. The
+client turns each request into a tool call:
 
-**Learning loop**: high-scoring work distills reusable playbooks and blocks
-distill lessons, both recalled before similar tasks. The per-agent **dispatch
-policy** (success rate + cost per model, from evals ⋈ ledger) recommends the
-cheapest model that historically clears the bar; flip `dispatch.auto_route` on
-and the runner routes each task to it (default-off; falls back to the configured
-model until there's enough signal). Set `dispatch.explore_epsilon > 0` and it
-occasionally re-samples an abandoned model so a recovered or newly-cheaper one
-can be rediscovered (logged as `dispatch.explored`). Inspect both via
-`ceo_insights`.
+| You ask | Tool call |
+|---------|-----------|
+| Boot CEAuto | `ceo_boot` |
+| Have the researcher size the EV charging market, and run it now | `ceo_delegate { agent: "researcher", task: {…}, execute: true }` |
+| Plan the Q3 launch, break it into subtasks | `ceo_delegate { agent: "comms", task: {…, plan: true}, execute: true }` |
+| Run an autonomous cycle | `ceo_run_cycle` |
+| Show metrics | `ceo_metrics` |
+| What has it learned | `ceo_insights` |
+
+The raw call a script or another MCP client would make:
+
+```json
+{
+  "name": "ceo_delegate",
+  "arguments": {
+    "agent": "researcher",
+    "task": { "title": "Size the EV home-charging market", "priority": "P1" },
+    "success_criteria": "A defensible TAM/SAM/SOM with stated assumptions.",
+    "execute": true
+  }
+}
+```
+
+`execute: true` runs it immediately. Drop it and the task waits in the backlog for
+the next `ceo_run_cycle` or the daemon. Add `task.plan: true` and the agent
+decomposes the task into a subtask DAG instead of doing it directly.
+
+### How work runs
+
+Every task goes through one **executor**: `llm` (default), `mcp-tool` (call any MCP
+server as an agent), `shell`, `webhook`, `claude-code`, or `composite` (an ordered
+chain or map of other executors). Budget, approval, and veto gates wrap all of them
+the same way. **Reactive sources** (file-watch, an inbound webhook, `@role`
+mentions) feed the queue from outside the heartbeat. Sources and the higher-risk
+executors are off by default.
+
+**Governance.** Strategic decisions, sensitive actions, and budget overages gate on
+human approval. Drop in `config/policy.yaml` for rule-based gating and
+multi-approver quorum. The read-only dashboard (`npm run dashboard`, binds
+127.0.0.1) renders tasks, approvals, org spend, metrics, and the event log straight
+from SQLite.
+
+**Learning.** High-scoring work becomes a reusable playbook; blocked work becomes a
+lesson. Both get recalled before similar tasks. A per-agent dispatch policy tracks
+success rate and cost per model. Turn on `dispatch.auto_route` and the runner sends
+each task to the cheapest model that has cleared the bar, falling back to the
+configured one until it has enough data. Set `dispatch.explore_epsilon > 0` to
+occasionally re-sample an abandoned model so a recovered or cheaper one resurfaces.
+See it all with `ceo_insights`.
 
 ## Sub-Agents
 
@@ -405,22 +479,24 @@ Fill in `memory/context.md` with your company/project context and `strategy/goal
 
 ```
 CEAuto/
-├── server.js               # MCP entry point
-├── lib/
-│   ├── llm-adapter.js      # Anthropic/OpenAI/Google/Ollama abstraction
-│   ├── memory.js           # SQLite FTS5 memory store
-│   └── orchestrator.js     # YAML workflow engine
+├── server.js               # MCP entry point (19 tools over stdio)
+├── lib/                    # runner, executors, budget, approvals, scheduler,
+│                           #   events, learning, memory, llm-adapter, …
+├── bin/
+│   ├── ceauto-daemon.js    # the heartbeat loop (npm run daemon | cycle)
+│   └── ceauto-dashboard.js # read-only status page (npm run dashboard)
+├── examples/
+│   └── demo.mjs            # offline end-to-end walkthrough (no API key)
 ├── config/
-│   └── providers.yaml      # LLM provider config
-├── memory/
-│   └── context.md          # Your company/project context (fill this in)
-├── strategy/
-│   └── goals.md            # Current strategic goals (fill this in)
+│   ├── providers.yaml      # LLM provider + pricing + budgets
+│   ├── settings.yaml       # autonomy, executors, sources, dispatch, dashboard
+│   └── policy.yaml.example # optional policy-as-code / quorum
+├── memory/context.md       # your company/project context (fill this in)
+├── strategy/goals.md       # current strategic goals (fill this in)
 ├── workflows/              # YAML workflow definitions
-├── ceo-core/
-│   └── system-prompt.md
-├── install.sh              # Installer (Linux/macOS/Git Bash)
-└── install.bat             # Installer (Windows)
+├── test/                   # unit + integration + e2e (199 tests, mock provider)
+├── install.sh              # installer (Linux/macOS/Git Bash)
+└── install.bat             # installer (Windows)
 ```
 
 ## Requirements

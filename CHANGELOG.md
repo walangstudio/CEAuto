@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.1] - 2026-06-10
+### Added
+- `examples/demo.mjs`, an offline end-to-end walkthrough. It spawns the real
+  server with the built-in mock provider (`CEAUTO_MOCK_LLM=1`) and drives boot →
+  delegate → heartbeat cycle → metrics → insights over MCP, with no API key and
+  zero spend. State goes to a throwaway workspace via `CEAUTO_WORKSPACE`.
+
+### Changed
+- README rewritten for clarity: a "Try it locally (no API key)" quickstart, a
+  "Sample usage" section (natural-language requests mapped to tool calls, plus a
+  raw `ceo_delegate` call), and an accurate repo layout.
+- eslint flat config now lints `**/*.mjs` (ESM) so the example is covered.
+
 ## [0.14.0] - 2026-06-10
 ### Added
 - **Epsilon-greedy exploration for the dispatch policy (Pillar 6)** — with
