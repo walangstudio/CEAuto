@@ -5,6 +5,7 @@ const tasks = require('../../lib/tasks');
 const budget = require('../../lib/budget');
 const runner = require('../../lib/runner');
 const orchestrator = require('../../lib/orchestrator');
+const events = require('../../lib/events');
 const { estimateTokens } = require('../../lib/llm-adapter');
 const { makeMockDispatch } = require('../helpers/mock-llm');
 const { makeTmpWorkspace, cleanup } = require('../helpers/tmp-workspace');
@@ -135,6 +136,26 @@ describe('runner.runTask', () => {
     expect(res.status).toBe('done');
     expect(dispatch.calls.at(-1).route).toEqual({}); // no override passed
     expect(res.usage.model).toBe('mock-model'); // configured/default model
+  });
+
+  it('explores an abandoned model when explore_epsilon fires, and logs it', async () => {
+    seedHistory('researcher', 'haiku', 'anthropic');       // 4 good runs -> exploit pick
+    seedHistory('researcher', 'sonnet', 'anthropic', 1);   // under-sampled -> explore target
+    tasks.create({ id: 'T-R4', title: 'explore me', agent: 'researcher', status: 'in-progress' });
+    const dispatch = makeMockDispatch({ responder: () => 'done' });
+
+    const res = await runner.runTask('T-R4', {
+      workspace: ws, dispatch,
+      rng: () => 0, // coin always fires
+      settings: { dispatch: { auto_route: true, explore_epsilon: 1 } },
+    });
+
+    expect(res.status).toBe('done');
+    expect(dispatch.calls.at(-1).route).toMatchObject({ model: 'sonnet', provider: 'anthropic', explore: true });
+    expect(res.usage.model).toBe('sonnet'); // ran on the explored model, not the exploit pick
+    const logged = events.list({ type: 'dispatch.explored' });
+    expect(logged).toHaveLength(1);
+    expect(logged[0].payload).toMatchObject({ task: 'T-R4', model: 'sonnet' });
   });
 
   it('falls back to config when auto_route is on but there is no signal', async () => {

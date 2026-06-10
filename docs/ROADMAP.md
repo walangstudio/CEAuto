@@ -133,8 +133,11 @@ big task into a DAG before execution shipped on top of this directive path
   `dispatch.auto_route: true` (default-off) the runner routes each task to the
   recommendation (`learning.recommendDispatch`), falling back to the configured
   model when off or under-sampled. A partial route is ignored to avoid a
-  cross-provider mismatch. Remaining nicety: epsilon-exploration so an abandoned
-  model can be re-sampled (today the policy only self-corrects downward).
+  cross-provider mismatch. **Epsilon-exploration shipped**
+  (`dispatch.explore_epsilon`, default 0): with probability ε the policy
+  re-samples an abandoned/under-sampled model (least-sampled routable candidate,
+  logged as `dispatch.explored`) so a recovered or newly-cheaper model can be
+  rediscovered — the policy no longer only self-corrects downward.
 
 ## Pillar 7 — Local dashboard + richer governance ✅ (G2, shipped)
 

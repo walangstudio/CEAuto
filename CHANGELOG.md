@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.14.0] - 2026-06-10
+### Added
+- **Epsilon-greedy exploration for the dispatch policy (Pillar 6)** — with
+  `dispatch.explore_epsilon > 0` (default `0`), auto-routing occasionally
+  re-samples an *abandoned* model (under-sampled or fallen below the success bar)
+  instead of always taking the cheapest-good exploit pick, so a model that has
+  since recovered or a newly-cheaper option can be rediscovered. Before this the
+  policy only self-corrected *downward* and could never climb back to a model it
+  had dropped. The explore pick is the least-sampled routable candidate (ties
+  break cheapest) and is logged as a `dispatch.explored` event so the audit trail
+  explains the off-policy route. `learning.recommendDispatch` gains `epsilon` +
+  an injectable `rng` (deterministic in tests); `ceo_insights` shows `explore ε`
+  when set.
+
+### Changed
+- `config/settings.yaml` `dispatch` block gains `explore_epsilon` (default `0` —
+  exploit-only, behaviour unchanged unless opted in).
+
 ## [0.13.0] - 2026-06-07
 ### Added
 - **LLM planner step (Pillars 3 + 5)** — a task delegated with `task.plan: true`

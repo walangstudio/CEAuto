@@ -1,6 +1,6 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.13.0-blue)
+![version](https://img.shields.io/badge/version-0.14.0-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -365,7 +365,10 @@ distill lessons, both recalled before similar tasks. The per-agent **dispatch
 policy** (success rate + cost per model, from evals ⋈ ledger) recommends the
 cheapest model that historically clears the bar; flip `dispatch.auto_route` on
 and the runner routes each task to it (default-off; falls back to the configured
-model until there's enough signal). Inspect both via `ceo_insights`.
+model until there's enough signal). Set `dispatch.explore_epsilon > 0` and it
+occasionally re-samples an abandoned model so a recovered or newly-cheaper one
+can be rediscovered (logged as `dispatch.explored`). Inspect both via
+`ceo_insights`.
 
 ## Sub-Agents
 

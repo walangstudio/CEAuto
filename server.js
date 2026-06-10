@@ -344,9 +344,11 @@ async function handleInsights(args = {}) {
   const { playbooks, lessons } = learning.counts();
   const dispatchCfg = (loadSettings().dispatch) || {};
   const lines = ['# Learning Insights\n', `Playbooks: ${playbooks} · Lessons: ${lessons}\n`];
+  const eps = dispatchCfg.explore_epsilon ?? 0;
   lines.push(
     `Auto-route: ${dispatchCfg.auto_route ? '🟢 on' : '⚪ off'} ` +
-    `(min samples ${dispatchCfg.min_samples ?? 3}, min success ${Math.round((dispatchCfg.min_success ?? 0.6) * 100)}%) — ` +
+    `(min samples ${dispatchCfg.min_samples ?? 3}, min success ${Math.round((dispatchCfg.min_success ?? 0.6) * 100)}%` +
+    `${eps > 0 ? `, explore ε ${Math.round(eps * 100)}%` : ''}) — ` +
     `${dispatchCfg.auto_route ? 'tasks run on the ✅ model below' : 'using the configured model; recommendation is advisory'}\n`
   );
   lines.push('## Dispatch policy (per agent → model, cheapest-that-works)');
@@ -608,7 +610,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.13.0' },
+    { name: 'ceauto', version: '0.14.0' },
     { capabilities: { tools: {} } }
   );
 

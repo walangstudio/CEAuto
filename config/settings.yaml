@@ -81,8 +81,10 @@ dashboard:
 ## there isn't enough signal yet. Inspect with ceo_insights.
 dispatch:
   auto_route: false
-  min_samples: 3      # need at least this many scored runs on a model to trust it
-  min_success: 0.6    # and at least this success rate (eval >= pass score)
+  min_samples: 3       # need at least this many scored runs on a model to trust it
+  min_success: 0.6     # and at least this success rate (eval >= pass score)
+  explore_epsilon: 0   # 0 = exploit only. >0 (e.g. 0.1) = with that probability re-sample an
+                       # abandoned/under-sampled model, so a recovered or newly-cheaper one can be rediscovered.
 
 ## Governance (G2). Policy-as-code lives in config/policy.yaml (see
 ## config/policy.yaml.example). Absent → the autonomy.* gates above apply.
