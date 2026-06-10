@@ -91,6 +91,9 @@ token budget, then self-evaluates and logs metrics.
   that agent (`learning.recommendDispatch`, evals ⋈ ledger). Off or under-sampled
   (`min_samples` / `min_success`) → the configured provider/model is used. Only
   the `llm` executor consumes the route; inspect status via `ceo_insights`.
+  `explore_epsilon` (default 0) adds epsilon-greedy exploration: with that
+  probability the policy re-samples an abandoned/under-sampled model (logged as
+  `dispatch.explored`) so a recovered or cheaper one can be rediscovered.
 
 ### Governance & dashboard (G2)
 - **Policy-as-code** (`config/policy.yaml`, optional — see `.example`): ordered

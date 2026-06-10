@@ -104,4 +104,60 @@ describe('learning loop', () => {
     }
     expect(learning.recommendDispatch('coder')).toEqual({ model: 'sonnet', provider: null });
   });
+
+  // Seed one good model (the exploit) + extra under-sampled models (explore targets).
+  function seedExploreScenario(extra = []) {
+    const db = memory.getDb();
+    const evalRow = db.prepare('INSERT INTO evals (task_id, agent, score, rubric, feedback) VALUES (?, ?, ?, ?, ?)');
+    const ledRow = db.prepare('INSERT INTO budget_ledger (agent, task_id, provider, model, usd, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, 0, 0)');
+    for (let i = 0; i < 4; i++) {            // haiku: 4 good runs -> the exploit pick
+      evalRow.run(`hk-${i}`, 'researcher', 5, 'q', 'good');
+      ledRow.run('researcher', `hk-${i}`, 'anthropic', 'haiku', 0.001);
+    }
+    for (const { model, provider, samples, usd } of extra) {
+      for (let i = 0; i < samples; i++) {
+        evalRow.run(`${model}-${i}`, 'researcher', 5, 'q', 'good');
+        ledRow.run('researcher', `${model}-${i}`, provider, model, usd);
+      }
+    }
+  }
+
+  it('epsilon-greedy exploration re-samples an abandoned model when the coin fires', () => {
+    seedExploreScenario([{ model: 'opus', provider: 'anthropic', samples: 1, usd: 0.05 }]);
+    // coin fires (rng < epsilon) -> explore the non-exploit candidate (under-sampled opus)
+    expect(learning.recommendDispatch('researcher', { epsilon: 1, rng: () => 0 }))
+      .toEqual({ model: 'opus', provider: 'anthropic', explore: true });
+    // coin misses (rng >= epsilon) -> the cheapest-that-works exploit pick, no explore tag
+    expect(learning.recommendDispatch('researcher', { epsilon: 0.5, rng: () => 0.9 }))
+      .toEqual({ model: 'haiku', provider: 'anthropic' });
+    // epsilon defaults to 0 -> never explores (behaviour unchanged)
+    expect(learning.recommendDispatch('researcher')).toEqual({ model: 'haiku', provider: 'anthropic' });
+  });
+
+  it('exploration picks the least-sampled routable candidate', () => {
+    seedExploreScenario([
+      { model: 'opus', provider: 'anthropic', samples: 1, usd: 0.05 },   // most neglected
+      { model: 'sonnet', provider: 'anthropic', samples: 2, usd: 0.02 },
+    ]);
+    expect(learning.recommendDispatch('researcher', { epsilon: 1, rng: () => 0 }))
+      .toEqual({ model: 'opus', provider: 'anthropic', explore: true });
+  });
+
+  it('exploration never fires when the exploit pick is the only candidate', () => {
+    seedExploreScenario(); // only haiku
+    expect(learning.recommendDispatch('researcher', { epsilon: 1, rng: () => 0 }))
+      .toEqual({ model: 'haiku', provider: 'anthropic' }); // falls through to exploit, no explore tag
+  });
+
+  it('exploration skips legacy null-provider candidates (not routable)', () => {
+    seedExploreScenario(); // haiku (good, anthropic)
+    const db = memory.getDb();
+    const evalRow = db.prepare('INSERT INTO evals (task_id, agent, score, rubric, feedback) VALUES (?, ?, ?, ?, ?)');
+    const legacy = db.prepare('INSERT INTO budget_ledger (agent, task_id, model, usd, input_tokens, output_tokens) VALUES (?, ?, ?, ?, 0, 0)');
+    evalRow.run('legacy-0', 'researcher', 5, 'q', 'good'); // under-sampled, NULL provider
+    legacy.run('researcher', 'legacy-0', 'sonnet', 0.5);
+    // the only non-exploit candidate has no provider -> nothing routable to explore -> exploit
+    expect(learning.recommendDispatch('researcher', { epsilon: 1, rng: () => 0 }))
+      .toEqual({ model: 'haiku', provider: 'anthropic' });
+  });
 });
