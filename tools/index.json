@@ -42,9 +42,28 @@
           "success_criteria": {
             "type": "string",
             "description": "Definition of done for this task"
+          },
+          "execute": {
+            "type": "boolean",
+            "description": "If true, immediately run the task through the agent's LLM (approval-first: defaults to false)"
+          },
+          "needs_approval": {
+            "type": "boolean",
+            "description": "If true, the task cannot be executed (manually or by the daemon) until a human approves it via ceo_resolve_approval"
           }
         },
         "required": ["task", "agent"]
+      }
+    },
+    {
+      "name": "ceo_run_task",
+      "description": "Execute a previously delegated task — claims it atomically, dispatches to the agent's LLM under budget control, writes the result, and marks it done",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string", "description": "ID of the task to run" }
+        },
+        "required": ["task_id"]
       }
     },
     {
@@ -130,6 +149,63 @@
           "learnings": { "type": "string" }
         },
         "required": ["task_id"]
+      }
+    },
+    {
+      "name": "ceo_run_cycle",
+      "description": "Run one autonomous heartbeat cycle — claims and executes up to max_tasks_per_cycle actionable tasks under budget control, self-evaluates, and logs. The same cycle the daemon runs on a schedule.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "ceo_metrics",
+      "description": "Report autonomy metrics — task throughput, token/USD spend, decisions, pending approvals, and average self-eval score. Also writes reports/metrics.md.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "ceo_request_approval",
+      "description": "Open a human approval request (strategic decision, sensitive action, or budget overage). The daemon will not execute the referenced item until approved.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string", "enum": ["decision", "task", "budget", "action"] },
+          "ref_id": { "type": "string", "description": "ID of the decision/task this gates" },
+          "summary": { "type": "string" },
+          "detail": { "type": "object" }
+        },
+        "required": ["kind"]
+      }
+    },
+    {
+      "name": "ceo_resolve_approval",
+      "description": "Approve or reject a pending approval. Approving a budget hold also resumes autonomous spend.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "number", "description": "Approval id" },
+          "decision": { "type": "string", "enum": ["approve", "reject"] },
+          "by": { "type": "string" },
+          "note": { "type": "string" }
+        },
+        "required": ["id", "decision"]
+      }
+    },
+    {
+      "name": "ceo_list_approvals",
+      "description": "List approvals, optionally filtered by status (pending/approved/rejected)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["pending", "approved", "rejected"] }
+        },
+        "required": []
       }
     },
     {
