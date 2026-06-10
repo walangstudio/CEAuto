@@ -23,8 +23,8 @@ function makeMockDispatch(opts = {}) {
     opts.responder ||
     ((agentId, _spec, task) => `[${agentId}] completed: ${String(task).slice(0, 80)}`);
 
-  async function dispatch(agentId, agentSpec, task, context = '') {
-    calls.push({ agentId, agentSpec, task, context });
+  async function dispatch(agentId, agentSpec, task, context = '', route = {}) {
+    calls.push({ agentId, agentSpec, task, context, route });
     if (opts.onCall) await opts.onCall(agentId, agentSpec, task, context, calls.length);
     const text =
       typeof responder === 'function'
@@ -33,13 +33,15 @@ function makeMockDispatch(opts = {}) {
     const input_tokens =
       opts.inputTokens ?? estimateTokens(`${agentSpec}\n${context}\n${task}`);
     const output_tokens = opts.outputTokens ?? estimateTokens(text);
+    // Honour a route override (Pillar 6) so the ledger/tests see the routed pair,
+    // exactly as the real adapter reflects it back in usage.
     return {
       text,
       usage: {
         input_tokens,
         output_tokens,
-        model: opts.model || 'mock-model',
-        provider: 'mock',
+        model: (route && route.model) || opts.model || 'mock-model',
+        provider: (route && route.provider) || 'mock',
       },
     };
   }
