@@ -15,8 +15,59 @@ const fs = require('fs');
 const path = require('path');
 const memory = require('./lib/memory');
 const orchestrator = require('./lib/orchestrator');
+const tasks = require('./lib/tasks');
+const projection = require('./lib/projection');
+const runner = require('./lib/runner');
+const approvals = require('./lib/approvals');
+const policy = require('./lib/policy');
+const budget = require('./lib/budget');
+const evaluator = require('./lib/evaluator');
+const heartbeat = require('./lib/heartbeat');
+const hooksRunner = require('./lib/hooks-runner');
+const metrics = require('./lib/metrics');
 
-const WORKSPACE = path.resolve(__dirname);
+function fireHook(name, ctx = {}) {
+  return hooksRunner.run(name, { workspace: WORKSPACE, ...ctx }, { pkgRoot: PKG_ROOT });
+}
+
+function requestApprovalFor(task, reason) {
+  approvals.request({ kind: 'budget', ref_id: task.id, summary: reason, detail: { agent: task.agent } });
+  approvals.renderApprovals(WORKSPACE);
+}
+
+// One dependency set shared by every execution path (delegate execute,
+// ceo_run_task, heartbeat) so they behave identically.
+function runDeps(extra = {}) {
+  return {
+    workspace: WORKSPACE,
+    pkgRoot: PKG_ROOT,
+    sessionId: SESSION_ID,
+    settings: loadSettings(),
+    requestApproval: requestApprovalFor,
+    evaluate: (ctx) => evaluator.selfEval(ctx),
+    hooks: fireHook,
+    ...extra,
+  };
+}
+
+const SESSION_ID = `S-${Date.now()}`;
+
+function loadSettings() {
+  try {
+    const yaml = require('js-yaml');
+    return yaml.load(fs.readFileSync(path.join(PKG_ROOT, 'config', 'settings.yaml'), 'utf-8')) || {};
+  } catch {
+    return {};
+  }
+}
+
+// PKG_ROOT holds code + specs + templates (always the install dir).
+// WORKSPACE holds mutable state (db, tasks, memory, comms, reports) and can be
+// redirected via CEAUTO_WORKSPACE so tests and multiple projects stay isolated.
+const PKG_ROOT = path.resolve(__dirname);
+const WORKSPACE = process.env.CEAUTO_WORKSPACE
+  ? path.resolve(process.env.CEAUTO_WORKSPACE)
+  : PKG_ROOT;
 const TOOLS = require('./tools/index.json');
 
 // ── Utility ──────────────────────────────────────────────────────────────────
@@ -73,6 +124,9 @@ async function handleBoot() {
     backlog: 'tasks/backlog.md',
   };
 
+  // Materialise the task tables from SQLite so the standup reflects truth.
+  projection.renderTasks(WORKSPACE);
+
   const state = {};
   for (const [key, rel] of Object.entries(stateFiles)) {
     state[key] = readFile(rel);
@@ -88,6 +142,7 @@ async function handleBoot() {
   writeFile('reports/standup.md', standup);
 
   memory.store('events', 'boot', { date: today(), files_loaded: loaded });
+  await fireHook('on-boot', { filesLoaded: loaded });
 
   return {
     content: [{
@@ -106,23 +161,28 @@ async function handleBoot() {
 async function handleDelegate(args) {
   const { task, agent, context_files = [], success_criteria = '' } = args;
   const taskId = task.id || `T-${Date.now()}`;
-  const date = today();
 
-  // Append to in-progress.md
-  const row = `| ${taskId} | ${task.title} | ${agent} | ${date} | ${date} | 🟢 On Track | — | ${task.deadline || 'TBD'} |\n`;
-  const existing = readFile('tasks/in-progress.md');
-  if (existing) {
-    writeFile('tasks/in-progress.md', existing + row);
-  } else {
-    writeFile('tasks/in-progress.md',
-      `# In Progress\n\n| ID | Task | Agent | Started | Last Update | Status | Blocker | Next Checkpoint |\n|----|------|-------|---------|-------------|--------|---------|------------------|\n${row}`
-    );
-  }
+  // Register the task in SQLite, then project the markdown tables from it.
+  tasks.create({
+    id: taskId,
+    title: task.title,
+    description: task.description || task.title,
+    agent,
+    status: 'in-progress',
+    priority: task.priority || 'P2',
+    deadline: task.deadline,
+    success_criteria,
+    context_files,
+    needs_approval: args.needs_approval,
+  });
+  projection.renderTasks(WORKSPACE);
+  await fireHook('on-delegate', { task: { id: taskId, title: task.title }, agent });
 
   // Log to agent-logs.md
   appendFile('memory/agent-logs.md', `\n## ${nowIso()}\n**Event:** Task Delegated\n**Task:** ${task.title}\n**ID:** ${taskId}\n**Agent:** ${agent}\n**Priority:** ${task.priority || 'P2'}\n`);
 
   // Create directive
+  const date = today();
   const directiveId = nextDirectiveId();
   const directive = [
     `\n## Directive ${directiveId} — ${date}`,
@@ -147,42 +207,129 @@ async function handleDelegate(args) {
     agent, task_id: taskId, priority: task.priority || 'P2', deadline: task.deadline || 'TBD',
   });
 
+  // Approval-first: only invoke the LLM when explicitly asked to execute.
+  if (args.execute) {
+    const result = await runner.runTask(taskId, runDeps());
+    return {
+      content: [{
+        type: 'text',
+        text: `Delegated and executed **${task.title}** (${taskId}) → **${agent}**.\nStatus: ${result.status}${result.reason ? ` — ${result.reason}` : ''}${result.resultPath ? `\nResult: ${result.resultPath}` : ''}`,
+      }],
+    };
+  }
+
   return {
     content: [{
       type: 'text',
-      text: `Delegated **${task.title}** (${taskId}) to **${agent}**.\nDirective ${directiveId} written to comms/directives.md.`,
+      text: `Delegated **${task.title}** (${taskId}) to **${agent}**.\nDirective ${directiveId} written to comms/directives.md.\n(Not executed — call ceo_run_task ${taskId} or pass execute:true to run it.)`,
     }],
   };
+}
+
+async function handleRunTask(args) {
+  const { task_id } = args;
+  if (!tasks.get(task_id)) {
+    return { content: [{ type: 'text', text: `Task ${task_id} not found.` }], isError: true };
+  }
+  const result = await runner.runTask(task_id, runDeps());
+  const lines = [
+    `# Task ${task_id} — ${result.status}`,
+    result.reason ? `**Reason:** ${result.reason}` : '',
+    result.resultPath ? `**Result:** ${result.resultPath}` : '',
+    result.usage ? `**Tokens:** ${result.usage.input_tokens}+${result.usage.output_tokens} (${result.usage.model})` : '',
+  ].filter(Boolean);
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
 async function handleDecide(args) {
   const { decision, rationale, persona = 'default', impact = '', decision_type = 'strategic' } = args;
   const date = today();
 
+  const gate = policy.requiresApproval({ decision_type }, loadSettings());
+  const refId = `DEC-${Date.now()}`;
+  let status = 'In effect';
+  let approvalNote = '';
+  if (gate.required) {
+    status = 'Pending approval';
+    approvals.request({ kind: 'decision', ref_id: refId, summary: decision, detail: { rationale, persona, decision_type } });
+    approvals.renderApprovals(WORKSPACE);
+    approvalNote = `\n⏸️ Gated: ${gate.reason}. Approve with ceo_resolve_approval.`;
+  }
+
   const entry = [
-    `\n## ${date} — ${decision_type}`,
+    `\n## ${date} — ${decision_type} (${refId})`,
     `**Decision:** ${decision}`,
     `**Rationale:** ${rationale}`,
     `**Persona:** ${persona}`,
     impact ? `**Impact:** ${impact}` : '',
-    `**Status:** In effect`,
+    `**Status:** ${status}`,
     `**Vetoed:** No`,
     `\n---\n`,
   ].filter(Boolean).join('\n');
 
   appendFile('memory/decisions.md', entry);
-  memory.store('decisions', decision, { rationale, persona, decision_type, impact, date });
+  memory.store('decisions', decision, { rationale, persona, decision_type, impact, date, ref_id: refId, status });
+  await fireHook('on-decide', { decision, rationale, persona });
 
   return {
     content: [{
       type: 'text',
-      text: `Decision logged: **${decision}**\nPersona: ${persona} | Type: ${decision_type}`,
+      text: `Decision logged: **${decision}**\nPersona: ${persona} | Type: ${decision_type} | Status: ${status}${approvalNote}`,
     }],
   };
 }
 
+async function handleMetrics() {
+  const md = metrics.writeReport(WORKSPACE);
+  return { content: [{ type: 'text', text: md }] };
+}
+
+async function handleRunCycle() {
+  const res = await heartbeat.runCycle(runDeps());
+  projection.renderTasks(WORKSPACE);
+  return {
+    content: [{
+      type: 'text',
+      text: `Heartbeat cycle: ran ${res.ran}, done ${res.done}, blocked ${res.blocked}, vetoed ${res.vetoed}${res.paused ? ' — PAUSED (budget hold)' : ''}`,
+    }],
+  };
+}
+
+async function handleRequestApproval(args) {
+  const { kind = 'action', ref_id = '', summary = '', detail = {} } = args;
+  const id = approvals.request({ kind, ref_id, summary, detail });
+  approvals.renderApprovals(WORKSPACE);
+  return { content: [{ type: 'text', text: `Approval #${id} requested (${kind}). Pending human resolution.` }] };
+}
+
+async function handleResolveApproval(args) {
+  const { id, decision, by = 'human', note = '' } = args;
+  const row = approvals.resolve(id, decision, by, note);
+  if (!row) {
+    return { content: [{ type: 'text', text: `Approval #${id} not found or already resolved.` }], isError: true };
+  }
+  // Approving a budget hold lifts the autonomous-spend pause.
+  if (row.status === 'approved' && row.kind === 'budget') {
+    budget.resume();
+  }
+  approvals.renderApprovals(WORKSPACE);
+  return { content: [{ type: 'text', text: `Approval #${id} → ${row.status} by ${by}.` }] };
+}
+
+async function handleListApprovals(args) {
+  const rows = approvals.list(args.status);
+  if (!rows.length) {
+    return { content: [{ type: 'text', text: 'No approvals on record.' }] };
+  }
+  const text = rows
+    .map(r => `#${r.id} [${r.status}] ${r.kind} ${r.ref_id || ''} — ${r.summary || ''}`)
+    .join('\n');
+  return { content: [{ type: 'text', text: `# Approvals\n${text}` }] };
+}
+
 async function handleGenerateStandup(args) {
   const date = args.date || today();
+  projection.renderTasks(WORKSPACE);
   const state = {
     blocked: readFile('tasks/blocked.md'),
     inProgress: readFile('tasks/in-progress.md'),
@@ -233,21 +380,18 @@ async function handleCreateDirective(args) {
 }
 
 async function handleReportBlocker(args) {
-  const { task_id, task_title = '', reason, agent = 'Unassigned', action_needed = 'CEO to resolve' } = args;
+  const { task_id, task_title = '', reason, agent = 'Unassigned' } = args;
   const date = today();
 
-  const row = `| ${task_id} | ${task_title} | ${agent} | ${date} | ${reason} | ${action_needed} | No |\n`;
-  const existing = readFile('tasks/blocked.md');
-  if (existing) {
-    writeFile('tasks/blocked.md', existing + row);
-  } else {
-    writeFile('tasks/blocked.md',
-      `# Blocked Tasks\n\n| ID | Task | Agent | Blocked Since | Reason | Action Needed | Escalated |\n|----|------|-------|---------------|--------|---------------|-----------|\n${row}`
-    );
+  if (!tasks.get(task_id)) {
+    tasks.create({ id: task_id, title: task_title || task_id, agent, status: 'backlog' });
   }
+  tasks.block(task_id, { reason, agent });
+  projection.renderTasks(WORKSPACE);
 
   appendFile('memory/agent-logs.md', `\n## ${nowIso()}\n**Event:** Task Blocked\n**Task:** ${task_title || task_id}\n**Reason:** ${reason}\n**Agent:** ${agent}\n`);
   memory.store('events', `blocked: ${task_id}`, { reason, agent, date });
+  await fireHook('on-blocked', { task: { id: task_id, title: task_title }, reason, agent });
 
   return {
     content: [{ type: 'text', text: `Task ${task_id} flagged as blocked.\nReason: ${reason}` }],
@@ -258,24 +402,14 @@ async function handleCompleteTask(args) {
   const { task_id, task_title = '', outcome = 'Done', quality = '⭐⭐⭐⭐', agent = '—', learnings = '' } = args;
   const date = today();
 
-  const row = `| ${task_id} | ${task_title} | ${agent} | ${date} | ${outcome} | ${quality} | ${learnings} |\n`;
-  const existing = readFile('tasks/done.md');
-  if (existing) {
-    writeFile('tasks/done.md', existing + row);
-  } else {
-    writeFile('tasks/done.md',
-      `# Completed\n\n| ID | Task | Agent | Completed | Outcome | Quality | Learnings |\n|----|------|-------|-----------|---------|---------|-----------|\n${row}`
-    );
+  if (!tasks.get(task_id)) {
+    tasks.create({ id: task_id, title: task_title || task_id, agent });
   }
-
-  // Remove from in-progress
-  const inProgress = readFile('tasks/in-progress.md');
-  if (inProgress) {
-    const lines = inProgress.split('\n').filter(line => !line.includes(`| ${task_id} |`));
-    writeFile('tasks/in-progress.md', lines.join('\n'));
-  }
+  tasks.complete(task_id, { outcome, quality, learnings, agent });
+  projection.renderTasks(WORKSPACE);
 
   memory.store('events', `completed: ${task_id}`, { outcome, quality, agent, date });
+  await fireHook('on-complete', { task: { id: task_id, title: task_title }, outcome, agent });
 
   return {
     content: [{ type: 'text', text: `Task ${task_id} completed. Quality: ${quality}\nOutcome: ${outcome}` }],
@@ -378,6 +512,12 @@ async function main() {
         case 'ceo_complete_task':   return await handleCompleteTask(args);
         case 'ceo_recall':          return await handleRecall(args);
         case 'ceo_workflow':        return await handleWorkflow(args);
+        case 'ceo_run_task':        return await handleRunTask(args);
+        case 'ceo_run_cycle':       return await handleRunCycle();
+        case 'ceo_metrics':         return await handleMetrics();
+        case 'ceo_request_approval': return await handleRequestApproval(args);
+        case 'ceo_resolve_approval': return await handleResolveApproval(args);
+        case 'ceo_list_approvals':  return await handleListApprovals(args);
         default:
           return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
       }

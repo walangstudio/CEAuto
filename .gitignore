@@ -1,3 +1,9 @@
+# CEAuto runtime database (created at runtime)
+db/*.sqlite
+db/*.sqlite-shm
+db/*.sqlite-wal
+db/*.sqlite-journal
+
 # Logs
 logs
 *.log

@@ -15,6 +15,17 @@ autonomy:
     - external_communications
     - file_deletion
     - config_changes
+  # Self-evaluation feedback loop
+  self_evaluate: true
+  eval_threshold: 3
+  max_eval_retries: 2
+  # Approval cost gate (USD) — estimated spend above this needs sign-off
+  approval_cost_threshold_usd: 5
+  # Heartbeat (consumed by bin/ceauto-daemon.js)
+  heartbeat_cron: "*/15 * * * *"
+  max_tasks_per_cycle: 3
+  per_heartbeat_token_budget: 40000
+  daily_token_budget: 2000000
 
 ## Session
 session:
