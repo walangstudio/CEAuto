@@ -21,10 +21,10 @@ describe('ceo_metrics + ceo_run_cycle over MCP', () => {
   it('exposes the full expanded toolset', async () => {
     const res = await client.listTools();
     const names = res.tools.map((t) => t.name);
-    for (const t of ['ceo_run_task', 'ceo_run_cycle', 'ceo_metrics', 'ceo_request_approval', 'ceo_resolve_approval', 'ceo_list_approvals']) {
+    for (const t of ['ceo_run_task', 'ceo_run_cycle', 'ceo_metrics', 'ceo_org', 'ceo_audit', 'ceo_insights', 'ceo_sources', 'ceo_request_approval', 'ceo_resolve_approval', 'ceo_list_approvals']) {
       expect(names).toContain(t);
     }
-    expect(names.length).toBe(15);
+    expect(names.length).toBe(19);
   });
 
   it('runs a cycle then reports metrics', async () => {

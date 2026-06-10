@@ -11,6 +11,8 @@ const nodeGlobals = {
   Buffer: 'readonly',
   fetch: 'readonly',
   URL: 'readonly',
+  AbortController: 'readonly',
+  TextDecoder: 'readonly',
   setTimeout: 'readonly',
   clearTimeout: 'readonly',
   setInterval: 'readonly',

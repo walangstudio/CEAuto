@@ -26,6 +26,68 @@ autonomy:
   max_tasks_per_cycle: 3
   per_heartbeat_token_budget: 40000
   daily_token_budget: 2000000
+  # Inter-agent delegation (Pillar 5) — bound runaway fan-out.
+  max_delegation_depth: 3      # how deep a subtask chain may go
+  max_subtasks_per_task: 5     # max children one task may spawn
+
+## Executors (Pillar 1 + G1) — how each agent's work is actually run.
+## Default is `llm`. Map an agent to another runtime via by_agent; the high-blast-
+## radius ones (shell, webhook, claude-code) are gated and default-off.
+##   llm | shell | mcp-tool | webhook (http-webhook) | claude-code | composite
+## `composite` runs an ordered list of executors as one task (mode: chain|map):
+##   agent_params: { builder: { mode: chain, steps: [ { executor: llm },
+##                                                     { executor: shell, params: { command: node, args: ["build.js"] } } ] } }
+executors:
+  default: llm
+  by_agent: {}        # e.g. { ops: shell, research-bot: mcp-tool, builder: composite }
+  agent_params: {}    # e.g. { ops: { command: node, args: ["worker.js"] } }
+  shell:
+    allowlist: []     # basenames permitted, e.g. ["node", "git"]
+  webhook:
+    allowlist: []     # outbound hosts permitted, e.g. ["worker.internal", "n8n.example.com"]
+  claude_code:
+    enabled: false    # default OFF — claude-code can edit files; enable deliberately
+    command: claude   # the Claude Code CLI binary
+    # outputFormat: json   # parse { result, usage } from `claude -p --output-format json`
+
+## Reactive sources (Pillar 4, G1) — feed the queue from outside the cron tick.
+## Master switch + per-source switch, all default-off (new inbound surface).
+sources:
+  enabled: false
+  file_watch:
+    enabled: false
+    paths: []            # dirs/globs to watch; a change creates a task
+    agent: ops
+  webhook:
+    enabled: false
+    host: "127.0.0.1"    # local-first; do not bind 0.0.0.0 without a proxy
+    port: 8787
+    secret: ""           # required X-CEAuto-Secret header (empty = no auth — keep local)
+    agent: ops
+  mention:
+    map: {}              # @alias -> agent override, e.g. { eng: coder }
+
+## Read-only local dashboard (Pillar 7, G2). `npm run dashboard`, or started by
+## the daemon when enabled. Local-first: binds 127.0.0.1. No writes, pure view.
+dashboard:
+  enabled: false
+  host: "127.0.0.1"
+  port: 8788
+
+## Dispatch policy (Pillar 6) — when on, the runner routes each task to the
+## cheapest model that has historically cleared the bar for that agent
+## (learning.recommendDispatch, fed by evals ⋈ ledger). Default OFF: until you
+## opt in, the configured provider/model is used. Falls back to config when
+## there isn't enough signal yet. Inspect with ceo_insights.
+dispatch:
+  auto_route: false
+  min_samples: 3       # need at least this many scored runs on a model to trust it
+  min_success: 0.6     # and at least this success rate (eval >= pass score)
+  explore_epsilon: 0   # 0 = exploit only. >0 (e.g. 0.1) = with that probability re-sample an
+                       # abandoned/under-sampled model, so a recovered or newly-cheaper one can be rediscovered.
+
+## Governance (G2). Policy-as-code lives in config/policy.yaml (see
+## config/policy.yaml.example). Absent → the autonomy.* gates above apply.
 
 ## Session
 session:

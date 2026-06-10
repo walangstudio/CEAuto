@@ -25,6 +25,9 @@ const evaluator = require('./lib/evaluator');
 const heartbeat = require('./lib/heartbeat');
 const hooksRunner = require('./lib/hooks-runner');
 const metrics = require('./lib/metrics');
+const org = require('./lib/org');
+const events = require('./lib/events');
+const learning = require('./lib/learning');
 
 function fireHook(name, ctx = {}) {
   return hooksRunner.run(name, { workspace: WORKSPACE, ...ctx }, { pkgRoot: PKG_ROOT });
@@ -174,6 +177,9 @@ async function handleDelegate(args) {
     success_criteria,
     context_files,
     needs_approval: args.needs_approval,
+    plan: task.plan,
+    depends_on: task.depends_on,
+    parent_id: task.parent_id,
   });
   projection.renderTasks(WORKSPACE);
   await fireHook('on-delegate', { task: { id: taskId, title: task.title }, agent });
@@ -251,9 +257,10 @@ async function handleDecide(args) {
   let approvalNote = '';
   if (gate.required) {
     status = 'Pending approval';
-    approvals.request({ kind: 'decision', ref_id: refId, summary: decision, detail: { rationale, persona, decision_type } });
+    approvals.request({ kind: 'decision', ref_id: refId, summary: decision, detail: { rationale, persona, decision_type }, quorum: gate.quorum });
     approvals.renderApprovals(WORKSPACE);
-    approvalNote = `\n⏸️ Gated: ${gate.reason}. Approve with ceo_resolve_approval.`;
+    const q = gate.quorum > 1 ? ` (needs ${gate.quorum} approvers)` : '';
+    approvalNote = `\n⏸️ Gated: ${gate.reason}${q}. Approve with ceo_resolve_approval.`;
   }
 
   const entry = [
@@ -282,6 +289,116 @@ async function handleDecide(args) {
 async function handleMetrics() {
   const md = metrics.writeReport(WORKSPACE);
   return { content: [{ type: 'text', text: md }] };
+}
+
+async function handleOrg() {
+  const nodes = org.tree({ spentByAgents: budget.spentByAgents });
+  if (!nodes.length) {
+    return { content: [{ type: 'text', text: 'No org modelled (config/org.yaml is empty).' }] };
+  }
+  const lines = ['# Org Chart\n', '| Role | Reports To | Members | Daily Budget | Spent today |', '|------|-----------|---------|--------------|-------------|'];
+  for (const n of nodes) {
+    const b = n.budget ? `${n.budget.daily_tokens ?? '∞'} tok / $${n.budget.daily_usd ?? '∞'}` : '—';
+    const spent = n.spent ? `${n.spent.tokens} tok / $${n.spent.usd.toFixed(2)}` : '—';
+    lines.push(`| ${n.role} | ${n.reports_to || '—'} | ${n.members.join(', ') || '—'} | ${b} | ${spent} |`);
+  }
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
+async function handleAudit(args = {}) {
+  const limit = args.limit || 25;
+  const allEvents = events.list();
+  const recent = allEvents.slice(-limit);
+  const lines = [`# Event Audit (${allEvents.length} total, showing last ${recent.length})\n`];
+  for (const e of recent) {
+    lines.push(`- #${e.id} ${e.created_at} \`${e.type}\` by ${e.actor} — ${JSON.stringify(e.payload)}`);
+  }
+  if (args.replay) {
+    // Re-derive task state from the log alone and compare to the live table.
+    const snap = events.snapshot(args.uptoId);
+    const ids = Object.keys(snap.tasks);
+    lines.push(`\n## Replay snapshot${args.uptoId ? ` @ event #${args.uptoId}` : ''} — ${ids.length} tasks`);
+    let drift = 0;
+    for (const id of ids) {
+      const replayed = snap.tasks[id].status;
+      const live = (tasks.get(id) || {}).status;
+      const match = args.uptoId ? '' : (replayed === live ? ' ✓' : ` ✗ live=${live}`);
+      if (!args.uptoId && replayed !== live) drift += 1;
+      lines.push(`- ${id}: ${replayed}${match}`);
+    }
+    if (!args.uptoId) lines.push(`\n**Replay fidelity:** ${ids.length - drift}/${ids.length} match live state`);
+  }
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
+async function handleInsights(args = {}) {
+  // Derive the agent list from actual dispatch history so any agent (incl.
+  // mcp-tool/shell runtimes) shows up, not just the seven hardcoded specialists.
+  let agents;
+  if (args.agent) {
+    agents = [args.agent];
+  } else {
+    const db = memory.getDb();
+    agents = db ? db.prepare("SELECT DISTINCT agent FROM evals WHERE agent IS NOT NULL ORDER BY agent").all().map(r => r.agent) : [];
+  }
+  const { playbooks, lessons } = learning.counts();
+  const dispatchCfg = (loadSettings().dispatch) || {};
+  const lines = ['# Learning Insights\n', `Playbooks: ${playbooks} · Lessons: ${lessons}\n`];
+  const eps = dispatchCfg.explore_epsilon ?? 0;
+  lines.push(
+    `Auto-route: ${dispatchCfg.auto_route ? '🟢 on' : '⚪ off'} ` +
+    `(min samples ${dispatchCfg.min_samples ?? 3}, min success ${Math.round((dispatchCfg.min_success ?? 0.6) * 100)}%` +
+    `${eps > 0 ? `, explore ε ${Math.round(eps * 100)}%` : ''}) — ` +
+    `${dispatchCfg.auto_route ? 'tasks run on the ✅ model below' : 'using the configured model; recommendation is advisory'}\n`
+  );
+  lines.push('## Dispatch policy (per agent → model, cheapest-that-works)');
+  lines.push('| Agent | Model | Samples | Success | Avg score | Avg $ | Recommended |');
+  lines.push('|-------|-------|---------|---------|-----------|-------|-------------|');
+  const headerLen = lines.length;
+  for (const a of agents) {
+    const stats = learning.dispatchStats(a);
+    if (!stats.length) continue;
+    const rec = learning.recommendModel(a);
+    for (const s of stats) {
+      const success = ((s.successRate || 0) * 100).toFixed(0);
+      const avgScore = (s.avgScore || 0).toFixed(2);
+      const avgUsd = (s.avgUsd || 0).toFixed(4);
+      lines.push(`| ${a} | ${s.model} | ${s.samples} | ${success}% | ${avgScore} | $${avgUsd} | ${rec === s.model ? '✅' : ''} |`);
+    }
+  }
+  if (lines.length === headerLen) lines.push('_(no dispatch history yet)_');
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
+}
+
+async function handleSources() {
+  const cfg = (loadSettings().sources) || {};
+  const fw = cfg.file_watch || {};
+  const wh = cfg.webhook || {};
+  const on = v => (v ? '🟢 on' : '⚪ off');
+  const lines = [
+    '# Reactive Sources\n',
+    `**Master switch:** ${on(cfg.enabled)} (sources only run while the daemon is up)\n`,
+    '| Source | Status | Config |',
+    '|--------|--------|--------|',
+    `| file-watch | ${on(cfg.enabled && fw.enabled)} | paths: ${(fw.paths || []).join(', ') || '—'} → ${fw.agent || 'ops'} |`,
+    `| webhook | ${on(cfg.enabled && wh.enabled)} | ${wh.host || '127.0.0.1'}:${wh.port || 8787}/webhook${wh.secret ? ' (secret set)' : ' (no secret)'} → ${wh.agent || 'ops'} |`,
+    `| @mention | (via webhook) | map: ${JSON.stringify((cfg.mention && cfg.mention.map) || {})} |`,
+  ];
+  // Recent source-triggered tasks. Bound the scan to the tail of the log (source.
+  // events span several types, so a single type= query can't fetch them) instead
+  // of loading every event ever emitted on each call.
+  const recent = events.list({ sinceId: Math.max(0, events.lastId() - 1000) })
+    .filter(e => e.type.startsWith('source.'))
+    .slice(-10);
+  lines.push(`\n## Recent source-triggered tasks (${recent.length})`);
+  if (!recent.length) {
+    lines.push('_(none yet)_');
+  } else {
+    for (const e of recent) {
+      lines.push(`- #${e.id} ${e.created_at} \`${e.type}\` → ${e.payload.task} (${e.payload.agent})`);
+    }
+  }
+  return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
 async function handleRunCycle() {
@@ -322,7 +439,10 @@ async function handleListApprovals(args) {
     return { content: [{ type: 'text', text: 'No approvals on record.' }] };
   }
   const text = rows
-    .map(r => `#${r.id} [${r.status}] ${r.kind} ${r.ref_id || ''} — ${r.summary || ''}`)
+    .map(r => {
+      const votes = (r.quorum || 1) > 1 ? ` [${approvals.approverCount(r)}/${r.quorum} approvers]` : '';
+      return `#${r.id} [${r.status}] ${r.kind} ${r.ref_id || ''} — ${r.summary || ''}${votes}`;
+    })
     .join('\n');
   return { content: [{ type: 'text', text: `# Approvals\n${text}` }] };
 }
@@ -490,7 +610,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.1.0' },
+    { name: 'ceauto', version: '0.14.0' },
     { capabilities: { tools: {} } }
   );
 
@@ -515,6 +635,10 @@ async function main() {
         case 'ceo_run_task':        return await handleRunTask(args);
         case 'ceo_run_cycle':       return await handleRunCycle();
         case 'ceo_metrics':         return await handleMetrics();
+        case 'ceo_org':             return await handleOrg();
+        case 'ceo_audit':           return await handleAudit(args);
+        case 'ceo_insights':        return await handleInsights(args);
+        case 'ceo_sources':         return await handleSources();
         case 'ceo_request_approval': return await handleRequestApproval(args);
         case 'ceo_resolve_approval': return await handleResolveApproval(args);
         case 'ceo_list_approvals':  return await handleListApprovals(args);

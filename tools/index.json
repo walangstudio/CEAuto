@@ -25,7 +25,20 @@
               "title": { "type": "string" },
               "description": { "type": "string" },
               "deadline": { "type": "string" },
-              "priority": { "type": "string", "enum": ["P1", "P2", "P3", "P4"] }
+              "priority": { "type": "string", "enum": ["P1", "P2", "P3", "P4"] },
+              "depends_on": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Task ids that must be done before this task is scheduled (DAG). The heartbeat only runs a task once all its deps are done; a missing dep or a cycle blocks the task with a reason."
+              },
+              "parent_id": {
+                "type": "string",
+                "description": "Parent task id when this is a subtask of a larger task"
+              },
+              "plan": {
+                "type": "boolean",
+                "description": "If true, run this as a PLANNING task: the agent decomposes it into a subtask DAG (via the LLM) instead of doing the work; the subtasks are spawned and scheduled automatically. Use with execute:true or ceo_run_task."
+              }
             },
             "required": ["title"]
           },
@@ -163,6 +176,48 @@
     {
       "name": "ceo_metrics",
       "description": "Report autonomy metrics — task throughput, token/USD spend, decisions, pending approvals, and average self-eval score. Also writes reports/metrics.md.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "ceo_org",
+      "description": "Show the org chart from config/org.yaml — roles, reporting lines, members, each role's daily budget envelope, and today's spend rolled up across the role's subtree.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "ceo_audit",
+      "description": "Audit + replay the append-only event log. Lists recent events; with replay:true, re-derives task state from the log alone and reports how well it matches the live state (or a past snapshot at uptoId).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "number", "description": "How many recent events to show (default 25)" },
+          "replay": { "type": "boolean", "description": "Re-derive task state from the event log and compare to live" },
+          "uptoId": { "type": "number", "description": "Replay only up to this event id (a past snapshot) instead of the full log" }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "ceo_insights",
+      "description": "Learning-loop insights: playbook/lesson counts and the dispatch policy — per-agent success rate, average score and cost per model, with the cheapest historically-successful model recommended.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "agent": { "type": "string", "description": "Limit to a single agent (default: all sub-agents)" }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "ceo_sources",
+      "description": "Show reactive source configuration and status — file-watch, inbound webhook, and @mention routing. Read-only; reports which sources are enabled and recent source-triggered tasks.",
       "inputSchema": {
         "type": "object",
         "properties": {},

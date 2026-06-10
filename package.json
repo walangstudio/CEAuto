@@ -1,6 +1,6 @@
 {
   "name": "ceauto",
-  "version": "0.2.0",
+  "version": "0.14.0",
   "description": "Autonomous CEO Agent — LLM-agnostic MCP server with multi-agent orchestration",
   "main": "server.js",
   "type": "commonjs",
@@ -9,6 +9,7 @@
     "dev": "node --watch server.js",
     "daemon": "node bin/ceauto-daemon.js",
     "cycle": "node bin/ceauto-daemon.js --once",
+    "dashboard": "node bin/ceauto-dashboard.js",
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
@@ -20,6 +21,7 @@
     "@anthropic-ai/sdk": "^0.65.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "better-sqlite3": "^12.2.0",
+    "chokidar": "^3.6.0",
     "js-yaml": "^4.1.0",
     "node-cron": "^3.0.3"
   },

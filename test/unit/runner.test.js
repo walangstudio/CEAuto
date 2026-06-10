@@ -4,6 +4,9 @@ const memory = require('../../lib/memory');
 const tasks = require('../../lib/tasks');
 const budget = require('../../lib/budget');
 const runner = require('../../lib/runner');
+const orchestrator = require('../../lib/orchestrator');
+const events = require('../../lib/events');
+const { estimateTokens } = require('../../lib/llm-adapter');
 const { makeMockDispatch } = require('../helpers/mock-llm');
 const { makeTmpWorkspace, cleanup } = require('../helpers/tmp-workspace');
 
@@ -96,6 +99,103 @@ describe('runner.runTask', () => {
     const res = await runner.runTask('T-5', { workspace: ws, dispatch });
     expect(res.status).toBe('skipped');
     expect(dispatch.calls).toHaveLength(0);
+  });
+
+  function seedHistory(agent, model, provider, n = 4) {
+    const db = memory.getDb();
+    const evalRow = db.prepare('INSERT INTO evals (task_id, agent, score, rubric, feedback) VALUES (?, ?, ?, ?, ?)');
+    const ledRow = db.prepare('INSERT INTO budget_ledger (agent, task_id, provider, model, usd, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, 0, 0)');
+    for (let i = 0; i < n; i++) {
+      evalRow.run(`${model}-${i}`, agent, 5, 'q', 'good');
+      ledRow.run(agent, `${model}-${i}`, provider, model, 0.001);
+    }
+  }
+
+  it('auto-routes to the cheapest historically-good model when enabled', async () => {
+    seedHistory('researcher', 'haiku', 'anthropic');
+    tasks.create({ id: 'T-R1', title: 'route me', agent: 'researcher', status: 'in-progress' });
+    const dispatch = makeMockDispatch({ responder: () => 'done' });
+
+    const res = await runner.runTask('T-R1', {
+      workspace: ws, dispatch,
+      settings: { dispatch: { auto_route: true } },
+    });
+
+    expect(res.status).toBe('done');
+    expect(dispatch.calls.at(-1).route).toEqual({ model: 'haiku', provider: 'anthropic' });
+    expect(res.usage.model).toBe('haiku'); // ledger sees the routed model
+  });
+
+  it('does not route when auto_route is off, even with history', async () => {
+    seedHistory('researcher', 'haiku', 'anthropic');
+    tasks.create({ id: 'T-R2', title: 'no route', agent: 'researcher', status: 'in-progress' });
+    const dispatch = makeMockDispatch({ responder: () => 'done' });
+
+    const res = await runner.runTask('T-R2', { workspace: ws, dispatch });
+
+    expect(res.status).toBe('done');
+    expect(dispatch.calls.at(-1).route).toEqual({}); // no override passed
+    expect(res.usage.model).toBe('mock-model'); // configured/default model
+  });
+
+  it('explores an abandoned model when explore_epsilon fires, and logs it', async () => {
+    seedHistory('researcher', 'haiku', 'anthropic');       // 4 good runs -> exploit pick
+    seedHistory('researcher', 'sonnet', 'anthropic', 1);   // under-sampled -> explore target
+    tasks.create({ id: 'T-R4', title: 'explore me', agent: 'researcher', status: 'in-progress' });
+    const dispatch = makeMockDispatch({ responder: () => 'done' });
+
+    const res = await runner.runTask('T-R4', {
+      workspace: ws, dispatch,
+      rng: () => 0, // coin always fires
+      settings: { dispatch: { auto_route: true, explore_epsilon: 1 } },
+    });
+
+    expect(res.status).toBe('done');
+    expect(dispatch.calls.at(-1).route).toMatchObject({ model: 'sonnet', provider: 'anthropic', explore: true });
+    expect(res.usage.model).toBe('sonnet'); // ran on the explored model, not the exploit pick
+    const logged = events.list({ type: 'dispatch.explored' });
+    expect(logged).toHaveLength(1);
+    expect(logged[0].payload).toMatchObject({ task: 'T-R4', model: 'sonnet' });
+  });
+
+  it('falls back to config when auto_route is on but there is no signal', async () => {
+    tasks.create({ id: 'T-R3', title: 'cold start', agent: 'researcher', status: 'in-progress' });
+    const dispatch = makeMockDispatch({ responder: () => 'done' });
+
+    const res = await runner.runTask('T-R3', {
+      workspace: ws, dispatch,
+      settings: { dispatch: { auto_route: true } },
+    });
+
+    expect(res.status).toBe('done');
+    expect(dispatch.calls.at(-1).route).toEqual({}); // recommendDispatch -> null -> {}
+    expect(res.usage.model).toBe('mock-model');
+  });
+
+  it('scales the budget gate by composite step count (cost gated, not single-step)', async () => {
+    const desc = 'x'.repeat(400);
+    const spec = orchestrator.loadAgentSpec('builder', ws); // missing → deterministic fallback
+    const est = estimateTokens(`${spec}${desc}`); // runner: spec + '' context + taskText(desc)
+    // Cap sits at 3× a single step: a 5-step composite (5×est) must blow it; a
+    // single dispatch (1×est) would have passed — so a block proves the scaling.
+    budget.configure({
+      pricing: { default: { input: 0, output: 0 } },
+      budgets: { per_agent_daily_tokens: est * 3, per_session_tokens: 1e9, global_daily_tokens: 1e9, global_daily_usd: 1e9 },
+    });
+    tasks.create({ id: 'T-co5', title: 'big composite', description: desc, agent: 'builder', status: 'in-progress' });
+    const dispatch = makeMockDispatch();
+    const settings = {
+      autonomy: { self_evaluate: false },
+      executors: {
+        by_agent: { builder: 'composite' },
+        agent_params: { builder: { steps: Array.from({ length: 5 }, () => ({ executor: 'llm' })) } },
+      },
+    };
+
+    const res = await runner.runTask('T-co5', { workspace: ws, dispatch, settings });
+    expect(res.status).toBe('blocked');
+    expect(res.reason).toMatch(/cap/);
+    expect(dispatch.calls).toHaveLength(0); // gated before any sub-step ran
   });
 
   it('blocks and pauses when budget is exhausted', async () => {
