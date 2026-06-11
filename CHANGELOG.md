@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.14.2] - 2026-06-11
+### Changed
+- `openai` provider now reaches any OpenAI-compatible `/chat/completions` endpoint
+  (NVIDIA, Together, Groq, OpenRouter, vLLM, LM Studio, …) via `base_url` in
+  `config/providers.yaml` or the `OPENAI_BASE_URL` env var. Dispatch uses plain
+  `fetch` instead of the OpenAI SDK, so there is no extra dependency to install.
+- Responses from reasoning models (qwen3, deepseek-r1, …) that leave `content`
+  empty and put the answer in `reasoning_content` are now read correctly instead
+  of being silently dropped.
+
+### Added
+- Commented NVIDIA / OpenAI-compatible example in `config/providers.yaml` and a
+  README section documenting `base_url` overrides.
+- Unit tests for the OpenAI-compatible path (URL + auth, `content` /
+  `reasoning_content` parsing, trailing-slash base_url, non-ok status, usage
+  estimation fallback).
+
 ## [0.14.1] - 2026-06-10
 ### Added
 - `examples/demo.mjs`, an offline end-to-end walkthrough. It spawns the real
