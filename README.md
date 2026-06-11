@@ -1,6 +1,6 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.14.1-blue)
+![version](https://img.shields.io/badge/version-0.14.2-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -473,6 +473,23 @@ providers:
     api_key_env: OPENAI_API_KEY
 ```
 
+### OpenAI-compatible providers
+
+The `openai` provider talks plain `/chat/completions`, so any service that speaks
+that REST shape works — NVIDIA, Together, Groq, OpenRouter, vLLM, LM Studio, and
+friends. Point `base_url` at the endpoint, set the model id, and supply the key in
+`OPENAI_API_KEY` (or `OPENAI_BASE_URL` to override the URL without editing config):
+
+```yaml
+providers:
+  openai:
+    base_url: https://integrate.api.nvidia.com/v1
+    default_model: meta/llama-3.3-70b-instruct
+```
+
+Reasoning models (qwen3, deepseek-r1, …) that return the answer in
+`reasoning_content` instead of `content` are handled — the adapter reads either.
+
 Fill in `memory/context.md` with your company/project context and `strategy/goals.md` with current goals before calling `ceo_boot`.
 
 ## What's Where
@@ -494,7 +511,7 @@ CEAuto/
 ├── memory/context.md       # your company/project context (fill this in)
 ├── strategy/goals.md       # current strategic goals (fill this in)
 ├── workflows/              # YAML workflow definitions
-├── test/                   # unit + integration + e2e (199 tests, mock provider)
+├── test/                   # unit + integration + e2e (204 tests, mock provider)
 ├── install.sh              # installer (Linux/macOS/Git Bash)
 └── install.bat             # installer (Windows)
 ```

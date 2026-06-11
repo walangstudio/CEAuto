@@ -610,7 +610,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.14.1' },
+    { name: 'ceauto', version: '0.14.2' },
     { capabilities: { tools: {} } }
   );
 
