@@ -13,6 +13,13 @@ providers:
   openai:
     default_model: gpt-4o
     # api_key: sk-...  # Set OPENAI_API_KEY env var instead
+    # base_url: https://api.openai.com/v1  # default; override for any OpenAI-compatible endpoint
+    # Any service speaking the OpenAI /chat/completions REST shape works here —
+    # NVIDIA, Together, Groq, OpenRouter, vLLM, LM Studio, … Point base_url at it,
+    # set default_model to that service's model id, and put the key in OPENAI_API_KEY
+    # (or OPENAI_BASE_URL env). Example (NVIDIA):
+    #   base_url: https://integrate.api.nvidia.com/v1
+    #   default_model: meta/llama-3.3-70b-instruct
 
   google:
     default_model: gemini-1.5-pro
