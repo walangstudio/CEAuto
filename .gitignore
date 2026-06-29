@@ -4,6 +4,9 @@ db/*.sqlite-shm
 db/*.sqlite-wal
 db/*.sqlite-journal
 
+# Throwaway demo workspace (examples/demo.mjs default path)
+.demo-workspace/
+
 # Logs
 logs
 *.log
