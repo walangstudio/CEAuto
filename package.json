@@ -1,6 +1,6 @@
 {
   "name": "ceauto",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "description": "Autonomous CEO Agent — LLM-agnostic MCP server with multi-agent orchestration",
   "main": "server.js",
   "type": "commonjs",
