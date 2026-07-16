@@ -2,7 +2,7 @@
 
 ## General
 name: "Autonomous CEO Agent"
-version: "1.0.0"
+version: "0.15.0"
 framework: "MCP-compatible"
 
 ## Autonomy
