@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.15.0] - 2026-07-16
+### Security
+- Reactive-source tasks (file-watch / inbound-webhook / @mention) now default to
+  `needs_approval` — external input can no longer trigger an agent's executor
+  autonomously without a human ack (opt out with `sources.*.auto_approve: true`).
+- New opt-in `executors.require_approval` list: a task routed to a high-blast
+  runtime (shell/webhook/claude-code/mcp-tool) is held for approval even if it
+  wasn't flagged — this is what makes the documented shell/webhook approval gate
+  real (empty by default; behaviour unchanged until enabled).
+- `ceo_workflow` steps are now budget-gated and recorded like every other runtime
+  (previously they bypassed budget/pause entirely and were invisible to metrics).
+- Caller-supplied task ids and workflow names are rejected if they contain path
+  separators or `..` (prevented writing/reading outside the workspace).
+- OpenAI-compatible `base_url` must be https unless the host is loopback (an
+  `http://` remote base_url would have leaked the API key). Optional `mcp-tool`
+  command allowlist added.
+
+### Fixed
+- A failure AFTER a task completed (e.g. in self-eval or projection) no longer
+  re-runs the LLM and double-charges the task: only the dispatch is retried;
+  record/complete/eval run exactly once.
+- Stale-claim recovery: a task stranded `in-progress` by a crashed worker is
+  reclaimed each cycle (the 10-min TTL was previously unreachable by the daemon).
+- Approving a budget hold now requeues the blocked task (it stayed blocked forever).
+- Per-session token cap is windowed (was a process-lifetime cap that eventually
+  paused a long-running daemon globally).
+- Non-LLM runtimes (shell/webhook/mcp) record $0 instead of phantom USD at default
+  LLM pricing (claude-code/composite stay under the USD cap).
+- OpenAI/Ollama fetches now abort on timeout instead of running past the runner.
+- Daemon skips a heartbeat tick while the previous cycle is still running; a single
+  task error no longer aborts the whole cycle; the audit feed is never truncated.
+- Google provider gives a clear "install the optional dependency" error instead of
+  a raw module-not-found crash.
+
+### Changed
+- `settings.yaml` agent roster completed to the real 7 agents (was 4, which
+  crippled the planner and inbound-webhook routing for ops/security/comms).
+- Committed runtime state (`db/*.sqlite`) and the stale `temp/` v1.0 prototype are
+  no longer tracked; `.claude-plugin/plugin.json` lists all 19 tools.
+
 ## [0.14.2] - 2026-06-11
 ### Changed
 - `openai` provider now reaches any OpenAI-compatible `/chat/completions` endpoint

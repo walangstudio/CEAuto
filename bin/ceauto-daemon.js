@@ -61,7 +61,11 @@ async function startSources(settings) {
   const stoppers = [];
 
   if (cfg.file_watch && cfg.file_watch.enabled && (cfg.file_watch.paths || []).length) {
-    const w = sources.watchFiles({ paths: cfg.file_watch.paths, agent: cfg.file_watch.agent || 'ops' });
+    const w = sources.watchFiles({
+      paths: cfg.file_watch.paths,
+      agent: cfg.file_watch.agent || 'ops',
+      needsApproval: !cfg.file_watch.auto_approve,
+    });
     stoppers.push(() => w.stop());
     process.stderr.write(`CEAuto sources: watching ${cfg.file_watch.paths.join(', ')}\n`);
   }
@@ -82,6 +86,7 @@ async function startSources(settings) {
             secret: wh.secret,
             agent: wh.agent || 'ops',
             map: (cfg.mention && cfg.mention.map) || {},
+            needsApproval: !wh.auto_approve,
             ...(agents.length ? { agents } : {}),
           }),
         },
@@ -161,11 +166,22 @@ async function main() {
   const sourcesHandle = await startSources(settings);
   const dashboardHandle = await startDashboard(settings);
 
+  // node-cron doesn't await the async callback, so a cycle slower than the
+  // interval would overlap the next — doubling the spend rate and racing the
+  // budget gate. Skip a tick while the previous cycle is still running.
+  let cycleRunning = false;
   const job = cron.schedule(expr, async () => {
+    if (cycleRunning) {
+      process.stderr.write('cycle skipped: previous cycle still running\n');
+      return;
+    }
+    cycleRunning = true;
     try {
       await heartbeat.runCycle(deps);
     } catch (e) {
       process.stderr.write(`cycle error: ${e.message}\n`);
+    } finally {
+      cycleRunning = false;
     }
   });
 

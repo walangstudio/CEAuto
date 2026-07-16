@@ -425,9 +425,15 @@ async function handleResolveApproval(args) {
   if (!row) {
     return { content: [{ type: 'text', text: `Approval #${id} not found or already resolved.` }], isError: true };
   }
-  // Approving a budget hold lifts the autonomous-spend pause.
+  // Approving a budget hold lifts the autonomous-spend pause AND requeues the
+  // task that hit the cap — otherwise resume() unblocks spending globally but the
+  // blocked task itself (excluded from readyOrder) would sit blocked forever.
   if (row.status === 'approved' && row.kind === 'budget') {
     budget.resume();
+    if (row.ref_id && tasks.get(row.ref_id)) {
+      tasks.requeue(row.ref_id);
+      projection.renderTasks(WORKSPACE);
+    }
   }
   approvals.renderApprovals(WORKSPACE);
   return { content: [{ type: 'text', text: `Approval #${id} → ${row.status} by ${by}.` }] };
@@ -610,7 +616,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.14.2' },
+    { name: 'ceauto', version: '0.15.0' },
     { capabilities: { tools: {} } }
   );
 

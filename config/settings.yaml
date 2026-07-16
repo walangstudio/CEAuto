@@ -41,10 +41,16 @@ executors:
   default: llm
   by_agent: {}        # e.g. { ops: shell, research-bot: mcp-tool, builder: composite }
   agent_params: {}    # e.g. { ops: { command: node, args: ["worker.js"] } }
+  # Executors that require a human approval before a task may run through them,
+  # even if the task wasn't flagged needs_approval. Empty = opt-in (unchanged).
+  # Recommended for unattended daemons: [shell, webhook, http-webhook, claude-code, mcp-tool]
+  require_approval: []
   shell:
     allowlist: []     # basenames permitted, e.g. ["node", "git"]
   webhook:
     allowlist: []     # outbound hosts permitted, e.g. ["worker.internal", "n8n.example.com"]
+  mcp-tool:
+    allowlist: []     # command basenames permitted (empty = allow; non-empty locks it down)
   claude_code:
     enabled: false    # default OFF — claude-code can edit files; enable deliberately
     command: claude   # the Claude Code CLI binary
@@ -58,12 +64,14 @@ sources:
     enabled: false
     paths: []            # dirs/globs to watch; a change creates a task
     agent: ops
+    auto_approve: false  # externally-triggered tasks need a human ack by default; true = run autonomously
   webhook:
     enabled: false
     host: "127.0.0.1"    # local-first; do not bind 0.0.0.0 without a proxy
     port: 8787
     secret: ""           # required X-CEAuto-Secret header (empty = no auth — keep local)
     agent: ops
+    auto_approve: false  # inbound-webhook tasks need a human ack by default; true = run autonomously
   mention:
     map: {}              # @alias -> agent override, e.g. { eng: coder }
 
@@ -140,3 +148,15 @@ agents:
     name: "Writer Agent"
     capability: "writing"
     definition: "subagents/writer.md"
+  ops:
+    name: "Ops Agent"
+    capability: "operations"
+    definition: "subagents/ops.md"
+  security:
+    name: "Security Agent"
+    capability: "security"
+    definition: "subagents/security.md"
+  comms:
+    name: "Comms Agent"
+    capability: "communications"
+    definition: "subagents/comms.md"
