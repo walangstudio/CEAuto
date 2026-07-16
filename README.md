@@ -1,6 +1,6 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.14.2-blue)
+![version](https://img.shields.io/badge/version-0.15.0-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -386,7 +386,7 @@ After `ceo_boot`, CEAuto loads your context and strategy docs. The 19 tools:
 | `ceo_audit` | Audit + replay the append-only event log |
 | `ceo_insights` | Learning loop: playbooks/lessons + dispatch policy |
 | `ceo_sources` | Reactive source status: file-watch / webhook / @mention |
-| `ceo_recall` | Semantic search across session memory |
+| `ceo_recall` | Full-text (FTS5) search across session memory |
 | `ceo_workflow` | Run a multi-step YAML workflow |
 
 ### Sample usage
@@ -511,7 +511,7 @@ CEAuto/
 ├── memory/context.md       # your company/project context (fill this in)
 ├── strategy/goals.md       # current strategic goals (fill this in)
 ├── workflows/              # YAML workflow definitions
-├── test/                   # unit + integration + e2e (204 tests, mock provider)
+├── test/                   # unit + integration + e2e (213 tests, mock provider)
 ├── install.sh              # installer (Linux/macOS/Git Bash)
 └── install.bat             # installer (Windows)
 ```
