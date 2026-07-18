@@ -407,7 +407,7 @@ async function handleRunCycle() {
   return {
     content: [{
       type: 'text',
-      text: `Heartbeat cycle: ran ${res.ran}, done ${res.done}, blocked ${res.blocked}, vetoed ${res.vetoed}${res.paused ? ' — PAUSED (budget hold)' : ''}`,
+      text: `Heartbeat cycle: ran ${res.ran}, done ${res.done}, blocked ${res.blocked}, vetoed ${res.vetoed}${res.generated ? `, generated ${res.generated}` : ''}${res.halted ? ' — HALTED (comms/STOP)' : ''}${res.paused ? ' — PAUSED (budget hold)' : ''}`,
     }],
   };
 }
@@ -425,9 +425,29 @@ async function handleResolveApproval(args) {
   if (!row) {
     return { content: [{ type: 'text', text: `Approval #${id} not found or already resolved.` }], isError: true };
   }
-  // Approving a budget hold lifts the autonomous-spend pause.
+  // Approving a budget hold lifts the autonomous-spend pause AND requeues the
+  // task that hit the cap — otherwise resume() unblocks spending globally but the
+  // blocked task itself (excluded from readyOrder) would sit blocked forever.
   if (row.status === 'approved' && row.kind === 'budget') {
     budget.resume();
+    // Only requeue if it's still blocked — never resurrect a task the human has
+    // since completed (requeue is an unconditional UPDATE).
+    const t = row.ref_id && tasks.get(row.ref_id);
+    if (t && t.status === 'blocked') {
+      tasks.requeue(row.ref_id);
+      projection.renderTasks(WORKSPACE);
+    }
+  }
+  // Rejecting a task approval must be terminal: block the task so it leaves the
+  // ready queue. Otherwise it stays backlog+needs_approval and the runner opens a
+  // FRESH approval next cycle (rejection never sticks — dry-run triage can't converge).
+  // Only touch a task that's still pending — never flip a done/blocked one.
+  if (row.status === 'rejected' && row.kind === 'task' && row.ref_id) {
+    const t = tasks.get(row.ref_id);
+    if (t && (t.status === 'backlog' || t.status === 'in-progress')) {
+      tasks.block(row.ref_id, { reason: 'rejected by human' });
+      projection.renderTasks(WORKSPACE);
+    }
   }
   approvals.renderApprovals(WORKSPACE);
   return { content: [{ type: 'text', text: `Approval #${id} → ${row.status} by ${by}.` }] };
@@ -610,7 +630,7 @@ async function main() {
   memory.init(path.join(WORKSPACE, 'db', 'memory.sqlite'));
 
   const server = new Server(
-    { name: 'ceauto', version: '0.14.2' },
+    { name: 'ceauto', version: '0.16.0' },
     { capabilities: { tools: {} } }
   );
 

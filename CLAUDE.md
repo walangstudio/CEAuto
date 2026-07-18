@@ -66,6 +66,20 @@ token budget, then self-evaluates and logs metrics.
 - Default OFF and approval-first: nothing runs the LLM until you `execute:true`,
   call `ceo_run_task`, or start the daemon.
 
+### Pursue goals (generative autonomy, default OFF)
+With `autonomy.pursue_goals: true`, when the ready queue is idle the daemon reads
+`strategy/goals.md` + `strategy/priorities.md` and originates the next tasks itself
+(`lib/strategist.js`) — so it keeps working toward your goals, not just draining what
+you hand it. Generated tasks pass the same budget/approval/veto gates. They are
+**dry-run** (`needs_approval`) unless `autonomy.auto_run_generated: true`; rejecting
+one blocks it. Bounded by `max_generated_tasks_per_day`, `max_plans_per_day`, and a
+`strategy_min_interval_minutes` cooldown.
+
+### Kill switch
+Create a file at `comms/STOP` to halt **all** dispatch immediately (heartbeat,
+`ceo_run_task`/`execute`, `ceo_workflow`); delete it to resume. Distinct from a
+per-task veto (`comms/vetos.md`) and from a budget pause.
+
 ### Cost & governance guardrails
 - **Budget** (`lib/budget.js`): per-agent / per-session / global daily token +
   USD caps in `config/providers.yaml`. A breach pauses autonomous spend and

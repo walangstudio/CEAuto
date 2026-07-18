@@ -58,4 +58,19 @@ describe('orchestrator.run', () => {
     const report = await orchestrator.run('nope', 'x', {}, ws, memory, { dispatch: makeMockDispatch() });
     expect(report).toMatch(/not found/);
   });
+
+  it('a STOP that lands mid-workflow halts the remaining steps', async () => {
+    let calls = 0;
+    const dispatch = async () => {
+      calls += 1;
+      if (calls === 1) {
+        fs.mkdirSync(path.join(ws, 'comms'), { recursive: true });
+        fs.writeFileSync(path.join(ws, 'comms', 'STOP'), '');
+      }
+      return { text: 'ok', usage: { input_tokens: 1, output_tokens: 1, model: 'mock-model', provider: 'mock' } };
+    };
+    const report = await orchestrator.run('test', 'goal', {}, ws, memory, { dispatch });
+    expect(calls).toBe(1); // step 2 never dispatched
+    expect(report).toMatch(/Halted/);
+  });
 });
