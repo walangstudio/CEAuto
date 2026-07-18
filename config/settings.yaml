@@ -2,7 +2,7 @@
 
 ## General
 name: "Autonomous CEO Agent"
-version: "1.0.0"
+version: "0.16.0"
 framework: "MCP-compatible"
 
 ## Autonomy
@@ -30,6 +30,19 @@ autonomy:
   max_delegation_depth: 3      # how deep a subtask chain may go
   max_subtasks_per_task: 5     # max children one task may spawn
 
+  # Pursue goals autonomously (lib/strategist.js). When the ready queue is idle,
+  # turn strategy/goals.md + priorities.md into the next tasks so the daemon keeps
+  # working toward your goals instead of just draining what you hand it.
+  pursue_goals: false               # master switch (default OFF)
+  auto_run_generated: false         # false = generated tasks need approval first (dry-run); true = run them
+  max_generated_tasks_per_day: 10   # hard cap on tasks the strategist may originate / 24h
+  max_plans_per_day: 24             # hard cap on planning CALLS/24h (bounds spend even on zero-yield plans)
+  strategy_min_interval_minutes: 30 # cooldown so it can't re-plan (and re-spend) every cycle
+  max_tasks_per_plan: 5             # fan-out cap per planning call
+  strategy_agent: analyst           # whose persona/budget the planning call uses
+  # Kill switch: create a file at comms/STOP to halt ALL dispatch immediately
+  # (checked at cycle start and before each task); delete it to resume.
+
 ## Executors (Pillar 1 + G1) — how each agent's work is actually run.
 ## Default is `llm`. Map an agent to another runtime via by_agent; the high-blast-
 ## radius ones (shell, webhook, claude-code) are gated and default-off.
@@ -41,10 +54,16 @@ executors:
   default: llm
   by_agent: {}        # e.g. { ops: shell, research-bot: mcp-tool, builder: composite }
   agent_params: {}    # e.g. { ops: { command: node, args: ["worker.js"] } }
+  # Executors that require a human approval before a task may run through them,
+  # even if the task wasn't flagged needs_approval. Empty = opt-in (unchanged).
+  # Recommended for unattended daemons: [shell, webhook, http-webhook, claude-code, mcp-tool]
+  require_approval: []
   shell:
     allowlist: []     # basenames permitted, e.g. ["node", "git"]
   webhook:
     allowlist: []     # outbound hosts permitted, e.g. ["worker.internal", "n8n.example.com"]
+  mcp-tool:
+    allowlist: []     # command basenames permitted (empty = allow; non-empty locks it down)
   claude_code:
     enabled: false    # default OFF — claude-code can edit files; enable deliberately
     command: claude   # the Claude Code CLI binary
@@ -58,12 +77,14 @@ sources:
     enabled: false
     paths: []            # dirs/globs to watch; a change creates a task
     agent: ops
+    auto_approve: false  # externally-triggered tasks need a human ack by default; true = run autonomously
   webhook:
     enabled: false
     host: "127.0.0.1"    # local-first; do not bind 0.0.0.0 without a proxy
     port: 8787
     secret: ""           # required X-CEAuto-Secret header (empty = no auth — keep local)
     agent: ops
+    auto_approve: false  # inbound-webhook tasks need a human ack by default; true = run autonomously
   mention:
     map: {}              # @alias -> agent override, e.g. { eng: coder }
 
@@ -140,3 +161,15 @@ agents:
     name: "Writer Agent"
     capability: "writing"
     definition: "subagents/writer.md"
+  ops:
+    name: "Ops Agent"
+    capability: "operations"
+    definition: "subagents/ops.md"
+  security:
+    name: "Security Agent"
+    capability: "security"
+    definition: "subagents/security.md"
+  comms:
+    name: "Comms Agent"
+    capability: "communications"
+    definition: "subagents/comms.md"

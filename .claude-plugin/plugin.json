@@ -1,6 +1,6 @@
 {
   "name": "ceauto",
-  "version": "0.1.0",
+  "version": "0.16.0",
   "description": "Autonomous CEO Agent — multi-agent orchestration, episodic memory, executive decision frameworks",
   "author": "CEAuto",
   "mcpServer": {
@@ -11,13 +11,23 @@
   "tools": [
     "ceo_boot",
     "ceo_delegate",
+    "ceo_run_task",
+    "ceo_run_cycle",
     "ceo_decide",
     "ceo_generate_standup",
     "ceo_create_directive",
     "ceo_report_blocker",
     "ceo_complete_task",
     "ceo_recall",
-    "ceo_workflow"
+    "ceo_workflow",
+    "ceo_metrics",
+    "ceo_org",
+    "ceo_audit",
+    "ceo_insights",
+    "ceo_sources",
+    "ceo_request_approval",
+    "ceo_resolve_approval",
+    "ceo_list_approvals"
   ],
   "requiredFiles": [
     "memory/context.md",

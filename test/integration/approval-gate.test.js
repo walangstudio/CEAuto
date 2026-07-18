@@ -60,4 +60,29 @@ describe('governance over MCP', () => {
     const res = await client.callTool('ceo_resolve_approval', { id, decision: 'approve', by: 'ceo' });
     expect(res.content[0].text).toMatch(/approved/);
   });
+
+  async function pendingIdFor(refId) {
+    const pending = await client.callTool('ceo_list_approvals', { status: 'pending' });
+    const m = pending.content[0].text.match(new RegExp(`#(\\d+) \\[pending\\] task ${refId}`));
+    return m && Number(m[1]);
+  }
+
+  it('rejecting a task approval blocks the task (terminal, does not reopen)', async () => {
+    await client.callTool('ceo_delegate', { task: { id: 'T-rej2', title: 'gated work' }, agent: 'ops', needs_approval: true });
+    await client.callTool('ceo_run_task', { task_id: 'T-rej2' }); // opens the approval
+    const id = await pendingIdFor('T-rej2');
+    await client.callTool('ceo_resolve_approval', { id, decision: 'reject', by: 'ceo' });
+    const res = await client.callTool('ceo_run_task', { task_id: 'T-rej2' });
+    expect(res.content[0].text).toMatch(/rejected/i); // terminal, not re-gated
+  });
+
+  it('rejecting a stale approval does NOT un-complete a done task', async () => {
+    await client.callTool('ceo_delegate', { task: { id: 'T-done1', title: 'work' }, agent: 'ops', needs_approval: true });
+    await client.callTool('ceo_run_task', { task_id: 'T-done1' }); // opens the approval
+    const id = await pendingIdFor('T-done1');
+    await client.callTool('ceo_complete_task', { task_id: 'T-done1' }); // human force-completes
+    await client.callTool('ceo_resolve_approval', { id, decision: 'reject', by: 'ceo' }); // stale reject
+    const res = await client.callTool('ceo_run_task', { task_id: 'T-done1' });
+    expect(res.content[0].text).toMatch(/already done/i); // still done, not flipped to blocked
+  });
 });

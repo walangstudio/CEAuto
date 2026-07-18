@@ -4,6 +4,9 @@ db/*.sqlite-shm
 db/*.sqlite-wal
 db/*.sqlite-journal
 
+# Stale v1.0 file-based prototype (superseded by the SQLite source of truth)
+temp/
+
 # Throwaway demo workspace (examples/demo.mjs default path)
 .demo-workspace/
 
