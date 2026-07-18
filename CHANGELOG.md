@@ -26,6 +26,11 @@
   real work of its slots.
 - `approvals` picks the latest request by `(requested_at, id)` so same-second
   requests are unambiguous.
+- `comms/STOP` is re-checked per workflow step (not just at start), so a stop that
+  lands mid-run halts the remaining steps.
+- Resolving an approval no longer flips a task that has since changed state: a
+  rejection only blocks a still-pending task, and a budget-approve only requeues a
+  still-blocked one (never resurrects a completed task).
 
 ## [0.15.0] - 2026-07-16
 ### Security

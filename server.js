@@ -430,7 +430,10 @@ async function handleResolveApproval(args) {
   // blocked task itself (excluded from readyOrder) would sit blocked forever.
   if (row.status === 'approved' && row.kind === 'budget') {
     budget.resume();
-    if (row.ref_id && tasks.get(row.ref_id)) {
+    // Only requeue if it's still blocked — never resurrect a task the human has
+    // since completed (requeue is an unconditional UPDATE).
+    const t = row.ref_id && tasks.get(row.ref_id);
+    if (t && t.status === 'blocked') {
       tasks.requeue(row.ref_id);
       projection.renderTasks(WORKSPACE);
     }
@@ -438,9 +441,13 @@ async function handleResolveApproval(args) {
   // Rejecting a task approval must be terminal: block the task so it leaves the
   // ready queue. Otherwise it stays backlog+needs_approval and the runner opens a
   // FRESH approval next cycle (rejection never sticks — dry-run triage can't converge).
-  if (row.status === 'rejected' && row.kind === 'task' && row.ref_id && tasks.get(row.ref_id)) {
-    tasks.block(row.ref_id, { reason: 'rejected by human' });
-    projection.renderTasks(WORKSPACE);
+  // Only touch a task that's still pending — never flip a done/blocked one.
+  if (row.status === 'rejected' && row.kind === 'task' && row.ref_id) {
+    const t = tasks.get(row.ref_id);
+    if (t && (t.status === 'backlog' || t.status === 'in-progress')) {
+      tasks.block(row.ref_id, { reason: 'rejected by human' });
+      projection.renderTasks(WORKSPACE);
+    }
   }
   approvals.renderApprovals(WORKSPACE);
   return { content: [{ type: 'text', text: `Approval #${id} → ${row.status} by ${by}.` }] };
