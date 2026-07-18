@@ -2,7 +2,7 @@
 
 ## General
 name: "Autonomous CEO Agent"
-version: "0.15.0"
+version: "0.16.0"
 framework: "MCP-compatible"
 
 ## Autonomy
@@ -29,6 +29,19 @@ autonomy:
   # Inter-agent delegation (Pillar 5) — bound runaway fan-out.
   max_delegation_depth: 3      # how deep a subtask chain may go
   max_subtasks_per_task: 5     # max children one task may spawn
+
+  # Pursue goals autonomously (lib/strategist.js). When the ready queue is idle,
+  # turn strategy/goals.md + priorities.md into the next tasks so the daemon keeps
+  # working toward your goals instead of just draining what you hand it.
+  pursue_goals: false               # master switch (default OFF)
+  auto_run_generated: false         # false = generated tasks need approval first (dry-run); true = run them
+  max_generated_tasks_per_day: 10   # hard cap on tasks the strategist may originate / 24h
+  max_plans_per_day: 24             # hard cap on planning CALLS/24h (bounds spend even on zero-yield plans)
+  strategy_min_interval_minutes: 30 # cooldown so it can't re-plan (and re-spend) every cycle
+  max_tasks_per_plan: 5             # fan-out cap per planning call
+  strategy_agent: analyst           # whose persona/budget the planning call uses
+  # Kill switch: create a file at comms/STOP to halt ALL dispatch immediately
+  # (checked at cycle start and before each task); delete it to resume.
 
 ## Executors (Pillar 1 + G1) — how each agent's work is actually run.
 ## Default is `llm`. Map an agent to another runtime via by_agent; the high-blast-
