@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.16.0] - 2026-07-16
+### Added
+- **Pursue goals autonomously (`lib/strategist.js`).** When the heartbeat's ready
+  queue is idle, CEAuto now reads `strategy/goals.md` + `strategy/priorities.md` and
+  originates the next tasks itself, so the daemon keeps working toward your goals
+  instead of only draining what you hand it. Generated tasks flow through the same
+  budget / approval / veto gates as any task. Default **OFF** (`autonomy.pursue_goals`).
+  - **Dry-run by default** (`auto_run_generated: false`): generated tasks are
+    `needs_approval`, so you approve what it wants to do before it runs. Rejecting a
+    generated task is now terminal (it's blocked, not re-proposed every cycle).
+  - Self-bounded: `max_generated_tasks_per_day`, `max_plans_per_day` (bounds spend
+    even on zero-yield plans), and `strategy_min_interval_minutes` (re-plan cooldown).
+    The planning call itself is budget-gated and recorded; guard counters fail closed.
+- **Kill switch (`comms/STOP`).** A single file halts **all** dispatch immediately —
+  the heartbeat (cycle start + mid-drain), `ceo_run_task` / `execute:true`, and
+  `ceo_workflow`. Works for an unattended run where you can't reach the terminal;
+  delete the file to resume. (`lib/killswitch.js`.)
+- Autonomy audit trail: `strategy.generated` / `strategy.planned` events, and the
+  cycle log/`ceo_run_cycle` now report generated + halted state.
+
+### Fixed
+- Pending dry-run (awaiting-approval) tasks no longer consume the per-cycle
+  `max_tasks_per_cycle` budget, so a standing pool of unapproved tasks can't starve
+  real work of its slots.
+- `approvals` picks the latest request by `(requested_at, id)` so same-second
+  requests are unambiguous.
+
 ## [0.15.0] - 2026-07-16
 ### Security
 - Reactive-source tasks (file-watch / inbound-webhook / @mention) now default to

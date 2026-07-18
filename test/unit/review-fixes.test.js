@@ -114,6 +114,35 @@ describe('review fixes', () => {
     const task = sources.ingest(sig, { needsApproval: true });
     expect(task.needs_approval).toBe(1);
   });
+
+  // A rejected task approval is terminal — the runner blocks it instead of
+  // reopening a fresh approval every cycle (dry-run rejection must converge).
+  it('a rejected task approval blocks the task and never dispatches', async () => {
+    tasks.create({ id: 'T-rej', title: 'gated', agent: 'researcher', status: 'in-progress', needs_approval: true });
+    const mock = makeMockDispatch();
+    let res = await runner.runTask('T-rej', { workspace: ws, dispatch: mock, settings: {} });
+    expect(res.status).toBe('awaiting-approval');
+
+    const ap = approvals.pending().find(a => a.ref_id === 'T-rej');
+    approvals.reject(ap.id, 'human');
+
+    res = await runner.runTask('T-rej', { workspace: ws, dispatch: mock, settings: {} });
+    expect(res.status).toBe('rejected');
+    expect(tasks.get('T-rej').status).toBe('blocked');
+    expect(mock.calls).toHaveLength(0);
+  });
+
+  // comms/STOP halts the runner path too (not just the heartbeat).
+  it('comms/STOP halts a direct runTask', async () => {
+    const fs = require('fs'); const p = require('path');
+    fs.mkdirSync(p.join(ws, 'comms'), { recursive: true });
+    fs.writeFileSync(p.join(ws, 'comms', 'STOP'), '');
+    tasks.create({ id: 'T-stop', title: 'x', agent: 'researcher', status: 'in-progress' });
+    const mock = makeMockDispatch();
+    const res = await runner.runTask('T-stop', { workspace: ws, dispatch: mock, settings: {} });
+    expect(res.status).toBe('halted');
+    expect(mock.calls).toHaveLength(0);
+  });
 });
 
 // S5 — refuse to send the API key over plaintext http to a non-loopback host.

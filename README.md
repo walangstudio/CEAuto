@@ -1,6 +1,6 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.15.0-blue)
+![version](https://img.shields.io/badge/version-0.16.0-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -511,7 +511,7 @@ CEAuto/
 ├── memory/context.md       # your company/project context (fill this in)
 ├── strategy/goals.md       # current strategic goals (fill this in)
 ├── workflows/              # YAML workflow definitions
-├── test/                   # unit + integration + e2e (213 tests, mock provider)
+├── test/                   # unit + integration + e2e (228 tests, mock provider)
 ├── install.sh              # installer (Linux/macOS/Git Bash)
 └── install.bat             # installer (Windows)
 ```
