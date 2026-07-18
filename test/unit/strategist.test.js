@@ -182,6 +182,20 @@ describe('heartbeat integration', () => {
     expect(tasks.all()).toHaveLength(0);
   });
 
+  it('pending dry-run tasks do not starve a real task of its cycle slot', async () => {
+    // two gated tasks created first (older) sit ahead of one runnable task; with
+    // maxTasks=1 the gated no-ops must NOT consume the only real-work slot.
+    tasks.create({ id: 'G-1', title: 'gated 1', agent: 'researcher', status: 'backlog', needs_approval: true });
+    tasks.create({ id: 'G-2', title: 'gated 2', agent: 'researcher', status: 'backlog', needs_approval: true });
+    tasks.create({ id: 'R-1', title: 'real work', agent: 'researcher', status: 'backlog' });
+    const res = await heartbeat.runCycle({
+      workspace: ws, dispatch: makeMockDispatch(), maxTasks: 1,
+      settings: { autonomy: { self_evaluate: false } },
+    });
+    expect(tasks.get('R-1').status).toBe('done'); // ran despite the gated pool ahead of it
+    expect(res.done).toBe(1);
+  });
+
   it('comms/STOP halts the whole cycle', async () => {
     const halted = makeTmpWorkspace({ 'comms/STOP': '' });
     memory.close();

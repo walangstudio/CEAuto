@@ -511,7 +511,7 @@ CEAuto/
 ├── memory/context.md       # your company/project context (fill this in)
 ├── strategy/goals.md       # current strategic goals (fill this in)
 ├── workflows/              # YAML workflow definitions
-├── test/                   # unit + integration + e2e (228 tests, mock provider)
+├── test/                   # unit + integration + e2e (232 tests, mock provider)
 ├── install.sh              # installer (Linux/macOS/Git Bash)
 └── install.bat             # installer (Windows)
 ```
