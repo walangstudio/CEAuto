@@ -45,8 +45,12 @@ Shipped: `llm`, `mcp-tool`, `shell` (Phase A); **`webhook`/`http-webhook` and
 `claude-code` (G1)** — both gated (host allowlist / default-off) and sharing a
 hardened child-process runner (`lib/executors/spawn-capture.js`); **`composite`**
 (`lib/executors/composite.js`) — an ordered chain/map of other executors, bounded
-to 10 steps with no nesting; the runner scales the budget gate by step count.
-**All runtimes done.**
+to 10 steps with no nesting; the runner scales the budget gate by step count; and
+**`codex`** (v0.17.0) — the OpenAI-plan sibling of `claude-code`. Both CLI runtimes
+bill the operator's **subscription** rather than per-token API credits (priced $0 by
+provider, API keys stripped from the child env), so the loop can run real coding work
+with no API key at all. **All runtimes done** — this closes the "agent runtimes" gap
+in the table above outright.
 
 ```
 // lib/executors/index.js
@@ -61,7 +65,8 @@ Built-in executors (each its own `lib/executors/*.js`):
 - `shell` — run a sandboxed command, capture stdout/exit; usage = wall/CPU proxy.
 - `http-webhook` — POST the task envelope to a URL, await a structured reply
   (lets an external worker/n8n/Zapier be an agent).
-- `claude-code` — spawn a Claude Code subagent for coding tasks.
+- `claude-code` — spawn a headless Claude Code subagent (`claude -p`) for coding tasks.
+- `codex` — spawn a headless OpenAI Codex subagent (`codex exec`) for coding tasks.
 - `composite` — ordered fan to several executors (map/reduce).
 
 Agent definition (`agents.yaml` / `org.yaml`) picks `executor` + `params`. The
