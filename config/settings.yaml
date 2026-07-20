@@ -2,7 +2,7 @@
 
 ## General
 name: "Autonomous CEO Agent"
-version: "0.16.0"
+version: "0.17.0"
 framework: "MCP-compatible"
 
 ## Autonomy
@@ -68,6 +68,19 @@ executors:
     enabled: false    # default OFF — claude-code can edit files; enable deliberately
     command: claude   # the Claude Code CLI binary
     # outputFormat: json   # parse { result, usage } from `claude -p --output-format json`
+  # Codex CLI (`codex exec`, prompt on stdin) — the OpenAI-plan sibling of claude_code.
+  # Both bill your SUBSCRIPTION rather than per-token API credits, so the loop can run
+  # real coding work with no API key. Default OFF (it can run commands / edit files).
+  codex:
+    enabled: false    # default OFF — enable deliberately
+    command: codex    # the Codex CLI binary
+    # args: [exec, --skip-git-repo-check, --color, never]      # the default
+    # args: [exec, --skip-git-repo-check, --color, never, --sandbox, workspace-write]  # let it write
+    # cwd: F:/path/to/a/sandbox   # give it a scratch working root, not your main repo
+    # passApiKeys: false  # keys are stripped from the child env so billing stays on your
+    #                     # PLAN; set true only if you deliberately run the CLI API-backed
+    # CAVEAT: your own ~/.codex/config.toml can widen sandbox/approvals globally — the
+    # "no bypass flag injected" guarantee only covers the argv CEAuto builds.
 
 ## Reactive sources (Pillar 4, G1) — feed the queue from outside the cron tick.
 ## Master switch + per-source switch, all default-off (new inbound surface).

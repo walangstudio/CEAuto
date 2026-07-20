@@ -87,6 +87,21 @@ describe('review fixes', () => {
     expect(byTask['T-llm']).toBeGreaterThan(0);
   });
 
+  // Subscription-billed CLI runtimes cost $0 of API spend — keyed on PROVIDER so a
+  // renamed binary can't make a real API-backed model free.
+  it('claude-code / codex ledger rows cost $0; a renamed binary does not get a free ride', () => {
+    budget.record({ agent: 'coder', task_id: 'T-cc', provider: 'claude-code', model: 'claude', input_tokens: 1000, output_tokens: 1000 });
+    budget.record({ agent: 'coder', task_id: 'T-cx', provider: 'codex', model: 'codex', input_tokens: 1000, output_tokens: 1000 });
+    // same binary NAME but a real API provider → still priced
+    budget.record({ agent: 'coder', task_id: 'T-api', provider: 'anthropic', model: 'claude', input_tokens: 1000, output_tokens: 1000 });
+    const byTask = Object.fromEntries(
+      memory.getDb().prepare('SELECT task_id, usd FROM budget_ledger').all().map(r => [r.task_id, r.usd])
+    );
+    expect(byTask['T-cc']).toBe(0);
+    expect(byTask['T-cx']).toBe(0);
+    expect(byTask['T-api']).toBeGreaterThan(0);
+  });
+
   // S3 — a caller-supplied id that would escape reports/tasks/ is rejected.
   it('S3: tasks.create rejects an unsafe id', () => {
     expect(() => tasks.create({ id: '../../etc/evil', title: 'x' })).toThrow(/unsafe task id/);

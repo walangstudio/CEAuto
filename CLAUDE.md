@@ -92,7 +92,10 @@ per-task veto (`comms/vetos.md`) and from a budget pause.
 - **Executors** (`executors.*`): each agent's work runs through one runtime —
   `llm` (default), `mcp-tool` (call any MCP server as an agent), `shell`
   (allowlisted), `webhook`/`http-webhook` (POST to an allowlisted host, redirects
-  refused), `claude-code` (headless `claude -p`, **default-off**), `composite`
+  refused), `claude-code` (headless `claude -p`, **default-off**), `codex`
+  (headless `codex exec`, **default-off**) — both CLI runtimes bill your Claude /
+  ChatGPT **subscription** instead of per-token API credits, so the loop can run
+  real coding work with no API key — `composite`
   (an ordered `chain`/`map` of other executors, max 10 steps, no nesting). Budget,
   approval, and veto wrap every runtime identically.
 - **Sources** (`sources.*`, all default-off): file-watch (chokidar), an inbound
