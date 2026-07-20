@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.17.0] - 2026-07-20
+### Added
+- **`codex` executor** — run a task through the OpenAI Codex CLI non-interactively
+  (`codex exec`, prompt on stdin), the sibling of `claude-code`. Default **OFF**
+  (`executors.codex.enabled`), config-bound command/args/cwd, and behind the same
+  budget / approval / veto / `comms/STOP` gates as every other runtime. Sandbox
+  policy is passed through `args` (e.g. `--sandbox workspace-write`); no bypass flag
+  is ever injected.
+- **Run with no API key.** Both CLI runtimes (`claude -p`, `codex exec`) bill your
+  Claude / ChatGPT **subscription** instead of per-token API credits, so an
+  autonomous loop can do real work on a plan you already pay for. They cost $0 in the
+  ledger — keyed on the **provider** (a constant inside each executor), never on the
+  binary name, so renaming a binary can't make a real API-backed model free. Their
+  **tokens are still metered** against the token caps.
+- Both CLI executors now **strip `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` from the child
+  environment**. The daemon usually has those set for the `llm` executor, and an
+  inherited key could silently flip the CLI to per-token API billing — spend the $0
+  ledger price would then hide from the global USD cap. Scrubbing makes
+  "subscription-billed" true by construction rather than assumed. `passApiKeys: true`
+  opts back in deliberately (then set real prices for the model it reports).
+
+### Verified
+- Standalone operation end-to-end with **no MCP client and no API key**: the daemon
+  (`node bin/ceauto-daemon.js --once`) drained a seeded task to `done` in an isolated
+  `CEAUTO_WORKSPACE`, and the offline demo completed the full boot → delegate → cycle
+  → metrics walkthrough.
+- Live subscription-backed run: the runner completed a real task through `codex exec`
+  (ChatGPT login, no `OPENAI_API_KEY`), recording `provider=codex` with `usd=0`.
+
 ## [0.16.0] - 2026-07-16
 ### Added
 - **Pursue goals autonomously (`lib/strategist.js`).** When the heartbeat's ready
