@@ -1,6 +1,6 @@
 {
   "name": "ceo-tools",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "MCP tools for CEAuto Autonomous CEO Agent",
   "tools": [
     {

@@ -49,6 +49,11 @@ providers:
 # Model pricing in USD per 1K tokens. `default` is used for unknown models.
 pricing:
   default: { input: 0.003, output: 0.015 }
+  # NOTE: the subscription-billed CLI runtimes (`claude -p`, `codex exec`) are NOT
+  # priced here. They are $0 by PROVIDER in lib/budget.js — keying on the binary name
+  # would let a rename silently make a real API-backed model free. Their tokens are
+  # still metered. If you deliberately run either CLI API-backed (`passApiKeys: true`),
+  # add a price entry for the model name it reports.
   claude-sonnet-4-6: { input: 0.003, output: 0.015 }
   claude-opus-4-8: { input: 0.015, output: 0.075 }
   claude-haiku-4-5-20251001: { input: 0.001, output: 0.005 }

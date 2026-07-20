@@ -1,6 +1,6 @@
 # CEAuto
 
-![version](https://img.shields.io/badge/version-0.16.0-blue)
+![version](https://img.shields.io/badge/version-0.17.0-blue)
 ![node](https://img.shields.io/badge/node-18%2B-339933?logo=node.js&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-compatible-blueviolet)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -424,11 +424,20 @@ decomposes the task into a subtask DAG instead of doing it directly.
 ### How work runs
 
 Every task goes through one **executor**: `llm` (default), `mcp-tool` (call any MCP
-server as an agent), `shell`, `webhook`, `claude-code`, or `composite` (an ordered
-chain or map of other executors). Budget, approval, and veto gates wrap all of them
-the same way. **Reactive sources** (file-watch, an inbound webhook, `@role`
-mentions) feed the queue from outside the heartbeat. Sources and the higher-risk
-executors are off by default.
+server as an agent), `shell`, `webhook`, `claude-code` (headless `claude -p`), `codex`
+(headless `codex exec`), or `composite` (an ordered chain or map of other executors).
+Budget, approval, and veto gates wrap all of them the same way. **Reactive sources**
+(file-watch, an inbound webhook, `@role` mentions) feed the queue from outside the
+heartbeat. Sources and the higher-risk executors are off by default.
+
+**No API key required.** The `claude-code` and `codex` executors drive your installed
+CLI, which bills your Claude / ChatGPT **subscription** rather than per-token API
+credits — so an autonomous loop can do real work on a plan you already pay for. They
+cost $0 in the ledger (keyed on the provider, so a renamed binary can't buy a free
+ride) while their tokens are still metered against the token caps. The executors also
+strip `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` from the child environment, so an inherited
+key can't silently flip the CLI to per-token API billing — set `passApiKeys: true` if
+you deliberately want an API-backed CLI.
 
 **Governance.** Strategic decisions, sensitive actions, and budget overages gate on
 human approval. Drop in `config/policy.yaml` for rule-based gating and
@@ -511,7 +520,7 @@ CEAuto/
 ├── memory/context.md       # your company/project context (fill this in)
 ├── strategy/goals.md       # current strategic goals (fill this in)
 ├── workflows/              # YAML workflow definitions
-├── test/                   # unit + integration + e2e (232 tests, mock provider)
+├── test/                   # unit + integration + e2e (240 tests, mock provider)
 ├── install.sh              # installer (Linux/macOS/Git Bash)
 └── install.bat             # installer (Windows)
 ```
